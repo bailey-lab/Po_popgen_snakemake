@@ -13,9 +13,11 @@
 #	determine origin of the Pf3D7 core genome bed file I got from karamoko
 #	add config file system. define input and output directory at top of snakefile, then reference for all inputs (and give specific name for output directory)
 #	Add steps to call variants and develop vcf
+# 	include those valentin joste samples in our ovale dataset
 #	add bcftools normalize step before limiting to biallelic snps? Would left-align variants but otherwise might not be important if we then just exclude indels
-#  	chromosome masking step is still droppinf the first chromosome of Pow, even after renaming the chromosomes
-#	do I need rule index_tagged_vcfs?
+#	nSl calculations screwed up by PowCR01 chromosomes including "|" in the name.
+#     Make it clear that we manually renamed, uses symlinks to avoid problematic characters, or simply realign once we have updated Pow reference
+#   pf3d7 chr3 vcf from pf3k release 6 is wrong. either find this original source online or revert to release 5?
 
 #needed input files:
 #	vcf of variants called for sample(s) after aligning to a specific reference genome, formatted as "input/vcfs/{project}_{species}.vcf.gz"
@@ -52,10 +54,13 @@ curtisigh01_orthos = parse_bed_file(config["input_beds"]+config["poc_orthos_mask
 ###nSL is calculated for haplotypes on each chromosome, so we must subset vcfs by chromosome. This function derives a list of chromosome names from the chr.bed files
 def	chrom_names(bed_file):
 	chr_dict={}
+	count = 0
 	for line in open(bed_file):
-		chrom = line.split("\t")[0]
-		start = line.split("\t")[1]
-		chr_dict[chrom]= [start]
+		if count > 0:
+			chrom = line.split("\t")[0]
+			start = line.split("\t")[1]
+			chr_dict[chrom]= [start]
+		count += 1
 	return chr_dict
 
 pf3d7_chr = chrom_names(config["input_beds"]+ "pf3d7_chr.bed")
@@ -72,6 +77,8 @@ rule all:
 	input:
 		###vcf filtering###
 		#files = config["input_vcfs"]+"ov1_wallikericr01.vcf.gz",
+		#pofiles = expand(config["output"]+"masked_vcfs/ov1_{species}_chrmasked.recode.vcf", species = ["wallikericr01", "curtisigh01"]),
+		#pffiles = config["output"]+"masked_vcfs/ov1_pf3d7_masked.recode.vcf",
 		#files = expand(config["output"]+"masked_biallelic_vcfs/ov1_{species}_masked_biallelic.vcf.gz", species = ["wallikericr01", "curtisigh01", "pf3d7"]),
 		#files = expand(config["output"]+"masked_vcfs/ov1_{species}_masked.vcf.gz", species = ["wallikericr01", "curtisigh01", "pf3d7"]),
 		#files = expand(config["output"]+"filtered_vcfs/ov1_{species}_masked_biallelic_filtertag.vcf.gz", species = ["wallikericr01", "curtisigh01"]),
@@ -91,9 +98,11 @@ rule all:
 		#popi = config["output"]+"orthologs/ov1_pocgh01_ortholog_pi.txt",
 		###Selection signals###
 		#nomissvcf = expand(config["output"]+"sample_sets/ov1_{species}_monoclonal_nomissing.vcf.gz", species = ["wallikericr01", "curtisigh01", "pf3d7"]),
-		pfnsl = expand(config["output"]+"selection/ov1_pf3d7_nsl_{chromosome}.nsl.out", chromosome = pf3d7_chr.keys()),
-		pocnsl = expand(config["output"]+"selection/ov1_curtisigh01_nsl_{chromosome}.nsl.out", chromosome = curtisigh01_chr.keys()),
+		#pfnsl = expand(config["output"]+"selection/ov1_pf3d7_nsl_{chromosome}.nsl.out", chromosome = pf3d7_chr.keys()),
+		#pocnsl = expand(config["output"]+"selection/ov1_curtisigh01_nsl_{chromosome}.nsl.out", chromosome = curtisigh01_chr.keys()),
 		#pownsl = expand(config["output"]+"selection/ov1_wallikericr01_nsl_{chromosome}.nsl.out", chromosome = wallikericr01_chr.keys()),
+		#nsl_compile_poc = config["output"]+"selection/ov1_curtisigh01_nsl_total.txt",
+		nsl_compile = expand(config["output"]+"selection/ov1_{species}_nsl_total.txt", species = ["wallikericr01", "curtisigh01"]),
 		###Snakemake administrative###
 		config = config["output"]+"pipeline/config.yaml",
 		snakefile = config["output"]+"pipeline/Snakefile.py"
@@ -180,7 +189,7 @@ rule recode_masked:
 	shell:
 		"bgzip -c {input} > {output}"
 
-###produces index (.tbi) files for all masked vcfs
+### produces index (.tbi) files for all masked vcfs
 rule index_masked_vcfs:
 	input:
 		config["output"]+"masked_vcfs/{project}_{species}_masked.vcf.gz"
@@ -256,7 +265,7 @@ rule pf_qualfiltertagger:
 		"""cp {input.vcf} {output}
 		gatk IndexFeatureFile -I {output}"""
 
-		###produces index (.tbi) files for all qc-filter-tagged vcfs
+###produces index (.tbi) files for all qc-filter-tagged vcfs
 rule index_tagged_vcfs:
 		input:
 			config["output"]+"filtered_vcfs/{project}_{species}_masked_biallelic_filtertag.vcf.gz"
@@ -552,3 +561,20 @@ rule calc_n_sl:
 		outfile = config["output"]+"selection/{project}_{species}_nsl_{chromosome}"
 	shell:
 		"selscan --nsl --vcf {input.vcf} --out {params.outfile}"
+
+rule compile_poc_n_sl:
+	input:
+		poc_nsl = expand(config["output"]+"selection/{project}_curtisigh01_nsl_{chromosome}.nsl.out", chromosome = curtisigh01_chr.keys(), allow_missing=True),
+	output:
+		poc_total = config["output"]+"selection/{project}_curtisigh01_nsl_total.txt"
+	shell:
+#		"""for i in {input.poc_nsl}; do cat $i | while read ID POS AF L1 L2 NSL; do echo "${{i%.nsl.out}} $POS $NSL" >> {output.poc_total}; done; done"""
+		"""for i in {input.poc_nsl}; do cat $i | while read ID POS AF L1 L2 NSL; do echo "${{i:45:2}} $POS $NSL" >> {output.poc_total}; done; done;"""
+
+rule compile_pow_n_sl:
+	input:
+		pow_nsl = expand(config["output"]+"selection/{project}_wallikericr01_nsl_{chromosome}.nsl.out", chromosome = wallikericr01_chr.keys(), allow_missing=True),
+	output:
+		pow_total = config["output"]+"selection/{project}_wallikericr01_nsl_total.txt"
+	shell:
+		"""for i in {input.pow_nsl}; do cat $i | while read ID POS AF L1 L2 NSL; do echo "${{i:45:2}} $POS $NSL" >> {output.pow_total}; done; done;"""
