@@ -18,6 +18,7 @@
 #	nSl calculations screwed up by PowCR01 chromosomes including "|" in the name.
 #     Make it clear that we manually renamed, uses symlinks to avoid problematic characters, or simply realign once we have updated Pow reference
 #   pf3d7 chr3 vcf from pf3k release 6 is wrong. either find this original source online or revert to release 5?
+#  should tajima's D calculation include missing sites? currently not using sites with any missingness
 
 #needed input files:
 #	vcf of variants called for sample(s) after aligning to a specific reference genome, formatted as "input/vcfs/{project}_{species}.vcf.gz"
@@ -102,7 +103,10 @@ rule all:
 		#pocnsl = expand(config["output"]+"selection/ov1_curtisigh01_nsl_{chromosome}.nsl.out", chromosome = curtisigh01_chr.keys()),
 		#pownsl = expand(config["output"]+"selection/ov1_wallikericr01_nsl_{chromosome}.nsl.out", chromosome = wallikericr01_chr.keys()),
 		#nsl_compile_poc = config["output"]+"selection/ov1_curtisigh01_nsl_total.txt",
-		nsl_compile = expand(config["output"]+"selection/ov1_{species}_nsl_total.txt", species = ["wallikericr01", "curtisigh01"]),
+		#nsl_compile = expand(config["output"]+"selection/ov1_{species}_nsl_total.txt", species = ["wallikericr01", "curtisigh01"]),
+		### Tajima's D calculations
+		#tajimad_poc = config["output"]+"selection/ov1_curtisigh01.Tajima.D",
+		tajima_poc_genes = config["output"]+"selection/ov1_curtisigh01_tajimad_genes.txt",
 		###Snakemake administrative###
 		config = config["output"]+"pipeline/config.yaml",
 		snakefile = config["output"]+"pipeline/Snakefile.py"
@@ -578,3 +582,35 @@ rule compile_pow_n_sl:
 		pow_total = config["output"]+"selection/{project}_wallikericr01_nsl_total.txt"
 	shell:
 		"""for i in {input.pow_nsl}; do cat $i | while read ID POS AF L1 L2 NSL; do echo "${{i:45:2}} $POS $NSL" >> {output.pow_total}; done; done;"""
+
+
+
+rule tajiima_d:
+	#currently using monoclonal samples only and with only non-missing sites
+	input:
+		config["output"]+"sample_sets/{project}_{species}_monoclonal_nomissing.vcf.gz"
+	output:
+		config["output"]+"selection/{project}_{species}.Tajima.D"
+	params:
+		outfile = config["output"]+"selection/{project}_{species}",
+		window = config["tajima_window"]
+	conda:
+		"envs/filter.yaml"
+	shell:
+		"vcftools --gzvcf {input} --out {params.outfile} --TajimaD {params.window}"
+
+
+rule select_tajima_d:
+	input:
+		stats = config["output"]+"selection/{project}_{species}.Tajima.D",
+		genes = config["input_beds"]+ "{species}_genes.bed",
+		exons = config["input_beds"]+ "{species}_exons.bed"	
+	output:
+		genes = config["output"]+"selection/{project}_{species}_tajimad_genes.txt",
+		exons = config["output"]+"selection/{project}_{species}_tajimad_exons.txt"
+	params:
+		window = config["tajima_window"]
+	script:
+		"scripts/gene_exon_tajima.py"
+		
+		
