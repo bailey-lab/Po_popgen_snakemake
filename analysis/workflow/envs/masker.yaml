@@ -1,0 +1,6 @@
+name: masker
+channels:
+  - bioconda
+dependencies:
+  - python = 3.6
+  - bioconda::vcftools=0.1.15
