@@ -83,6 +83,10 @@ readgroups = pull_readgroups(config["input_lists"]+"readgroups.csv")
 		#readgrouped = expand(config["output"]+"merged_alignments/readgrouped/{samplename}_{species}-pf3d7.bam", samplename = samplenames, species = ["curtisigh01","wallikericr01"]),
 		###Deduplication
 		#dedupped = expand(config["output"]+"merged_alignments/readgrouped/dedupped/{samplename}_{species}-pf3d7.bam", samplename = samplenames, species = ["curtisigh01","wallikericr01"]),
+		###Ovale selection
+		#ovaleselected = expand(config["output"]+"ovale_alignments/{samplename}_{species}.bam", samplename = samplenames, species = ["curtisigh01","wallikericr01"]),
+		###alignment cleaning
+		#cleaned = expand(config["output"]+"ovale_alignments/cleaned/{samplename}_{species}.bam", samplename = samplenames, species = ["curtisigh01","wallikericr01"]),
 		###administrative documents showing the pipeline and config inputs
 		#config = config["output"]+"pipeline/config.yaml",
 		#snakefile = config["output"]+"pipeline/Snakefile_processing.py"
@@ -270,5 +274,23 @@ rule deduplicate:
 	shell:
 		"gatk MarkDuplicatesSpark -I {input} -O {output} -M {params.outmetrics}"
 
+rule ovale_selecter:
+	input:
+		bam = config["output"]+"merged_alignments/readgrouped/{samplename}_{species}-pf3d7.bam",
+		ref =  config["input_genomes"]+"{species}.fasta"
+	output:
+		config["output"]+"ovale_alignments/{samplename}_{species}.bam"
+	conda:
+		"envs/samtools.yaml"
+	shell:
+		"samtools view -b -h {input.bam} -T {input.ref} > {output}"
 
-
+rule sam_cleaner:
+	input:
+		config["output"]+"ovale_alignments/{samplename}_{species}.bam"
+	output:
+		config["output"]+"ovale_alignments/cleaned/{samplename}_{species}.bam"
+	conda:
+		"envs/gatk.yaml"
+	shell:
+		"gatk CleanSam -I {input} -O {output}"
