@@ -11,7 +11,7 @@
 
 #TODO:
 #	determine origin of the Pf3D7 core genome bed file I got from karamoko
-#	add config file system. define input and output directory at top of snakefile, then reference for all inputs (and give specific name for output directory)
+#	add in variant recalibgration step for snps
 #	Add steps to call variants and develop vcf
 # 	include those valentin joste samples in our ovale dataset
 #	add bcftools normalize step before limiting to biallelic snps? Would left-align variants but otherwise might not be important if we then just exclude indels
@@ -19,6 +19,12 @@
 #     Make it clear that we manually renamed, uses symlinks to avoid problematic characters, or simply realign once we have updated Pow reference
 #   pf3d7 chr3 vcf from pf3k release 6 is wrong. either find this original source online or revert to release 5?
 #  should tajima's D calculation include missing sites? currently not using sites with any missingness
+#  double check that bed files have corrected curtisi and wallikeri chromomsome names
+#  add plink generation step
+#  add REALMcCOIL variant tabling step
+#  collapse gzipping into a single general rule working with ".recode.vcf" or by combining into previous steps, using temporary() for the intermediate recoded unzipped vcfs
+#  generate coditional script to quality filter tag for ovale (and gzip), and just copy the falciparum files
+#  make chromosome vcf subsets temporary
 
 #needed input files:
 #	vcf of variants called for sample(s) after aligning to a specific reference genome, formatted as "input/vcfs/{project}_{species}.vcf.gz"
@@ -103,13 +109,13 @@ rule all:
 		#pocnsl = expand(config["output"]+"selection/ov1_curtisigh01_nsl_{chromosome}.nsl.out", chromosome = curtisigh01_chr.keys()),
 		#pownsl = expand(config["output"]+"selection/ov1_wallikericr01_nsl_{chromosome}.nsl.out", chromosome = wallikericr01_chr.keys()),
 		#nsl_compile_poc = config["output"]+"selection/ov1_curtisigh01_nsl_total.txt",
-		#nsl_compile = expand(config["output"]+"selection/ov1_{species}_nsl_total.txt", species = ["wallikericr01", "curtisigh01"]),
+		nsl_compile = expand(config["output"]+"selection/ov1_{species}_nsl_total.txt", species = ["wallikericr01", "curtisigh01"]),
 		### Tajima's D calculations
 		#tajimad_poc = config["output"]+"selection/ov1_curtisigh01.Tajima.D",
-		tajima_poc_genes = config["output"]+"selection/ov1_curtisigh01_tajimad_genes.txt",
+		#tajima_poc_genes = config["output"]+"selection/ov1_curtisigh01_tajimad_genes.txt",
 		###Snakemake administrative###
-		config = config["output"]+"pipeline/config.yaml",
-		snakefile = config["output"]+"pipeline/Snakefile_analysis.py"
+		#config = config["output"]+"pipeline/config.yaml",
+		#snakefile = config["output"]+"pipeline/Snakefile_analysis.py"
 
 ### Step _: rename Po wallikeri CR01 chromsomes so they no longer includes "|" characters
 rule rename_pow_chr:
@@ -247,6 +253,7 @@ rule po_qualfiltertagger:
 		--filter-name 'lowReadPosRankSum' \
 		--filter-expression """+config["readposranksum_filter"]
 
+###gzip-compresses output vcf from rule po_qualfiltertagger
 rule po_qual_gzip:
 	input:
 		config["output"]+"filtered_vcfs/{project}_{ovale}01_masked_biallelic_filtertag.vcf"
@@ -281,7 +288,7 @@ rule index_tagged_vcfs:
 			"""bcftools index -t {input}"""
 
 			
-###Filter out all SNPs that fail QC (by hard filtering threshold for Po or the VQSLOD score for Pf)
+###Filter out all SNPs that fail QC (by hard filtering threshold for Po or the VQSLOD score for Pf) based on the presence of the filter tag
 rule filter_by_tag:
 	input: 
 		vcf = config["output"]+"filtered_vcfs/{project}_{species}_masked_biallelic_filtertag.vcf.gz",
@@ -423,7 +430,7 @@ rule gzip_orthologs:
 		"bgzip -c {input.genes} > {output.outfile}"
 
 rule calculate_po_ortho_pi:
-###outputs individual summary files for reach set of orthologs containing the pi of each ortholog
+###outputs individual summary files for each set of orthologs containing the pi of each ortholog
 	input:
 		povcf = config["output"]+"sample_sets/{project}_curtisigh01_monoclonal.vcf.gz",
 		poc_orthos_masked = config["input_beds"]+config["poc_orthos_masked"]
@@ -442,6 +449,7 @@ rule calculate_po_ortho_pi:
 
 		
 rule calculate_pf_ortho_pi:
+###outputs individual summary files for each set of orthologs containing the pi of each ortholog
 	input:
 		pfvcf = config["output"]+"sample_sets/{project}_pf3d7_monoclonal.vcf.gz",
 		pf_orthos_masked = config["input_beds"]+config["pf_orthos_masked"]
@@ -459,6 +467,7 @@ rule calculate_pf_ortho_pi:
 		"""vcftools --gzvcf {input.pfvcf} --out {params.pfoutfile}  --chr {params.chrom} --from-bp {params.start} --to-bp {params.stop} --window-pi {params.window} --window-pi-step 1"""
 	
 rule select_pfpi:
+###selects the particular windows that correspond to each ortholog's genomic window and appends to an output file for that ortholog
 	input:
 		pfpi = config["output"]+"orthologs/stats/{project}_pf3d7_{pfgeneid}.windowed.pi"
 	output:
@@ -474,6 +483,7 @@ rule select_pfpi:
 		else echo "{wildcards.pfgeneid} {params.chrom} {params.start} {params.stop} 0 0" >> {output.pfpitable};fi'''
 
 rule select_popi:
+###selects the particular windows that correspond to each ortholog's genomic window and appends to an output file for that ortholog
 	input:
 		popi = config["output"]+"orthologs/stats/{project}_curtisigh01_{pogeneid}.windowed.pi"
 	output:
@@ -489,6 +499,8 @@ rule select_popi:
 				else echo "{wildcards.pogeneid} {params.chrom} {params.start} {params.stop} 0 0" >> {output.popitable};fi'''
 				
 rule compile_pi:
+###compiles all ortholog-specific pi files into a single text file containing all orthologs for a given species
+###currently requires the presence of a curtisi set and a falciparum set. wallikeri set not yet added.
 	input:
 		pfpitable = expand(config["output"]+"orthologs/stats/{project}_pf3d7_{pfgeneid}_pi.txt", pfgeneid=pf3d7_orthos.keys(), allow_missing=True),
 		popitable = expand(config["output"]+"orthologs/stats/{project}_curtisigh01_{pogeneid}_pi.txt", pogeneid=curtisigh01_orthos.keys(), allow_missing=True),
@@ -502,6 +514,7 @@ rule compile_pi:
 ### Section _: Signatures of Selection
 
 rule gunzip_vcfs:
+###unzips monoclonal vcf files for use with selscan
 	input:
 		vcf = config["output"]+"sample_sets/{project}_{species}_monoclonal.vcf.gz"
 	output:
@@ -523,6 +536,7 @@ rule remove_missing:
 		"vcftools --gzvcf {input} --out {params.outfile} --max-missing 1 --recode --recode-INFO-all"
 
 rule gzip_nsl:
+###rezips monoclonal sample set vcf file
 	input:
 		config["output"]+"sample_sets/{project}_{species}_monoclonal_nomissing.recode.vcf"
 	output:
@@ -531,6 +545,7 @@ rule gzip_nsl:
 		"bgzip -c {input} > {output}"
 
 rule index_nomissing_vcfs:
+###generates index for non-missing monoclonal sample vcf files
 	input:
 		config["output"]+"sample_sets/{project}_{species}_monoclonal_nomissing.vcf.gz"
 	output:
@@ -541,6 +556,7 @@ rule index_nomissing_vcfs:
 		"""bcftools index -t {input}"""
 
 rule subset_chr:
+###subsets vcf files to only depict specific chromosomes for use in nSl calculations
 	input:
 		vcf = config["output"]+"sample_sets/{project}_{species}_monoclonal_nomissing.vcf.gz",
 		index = config["output"]+"sample_sets/{project}_{species}_monoclonal_nomissing.vcf.gz.tbi",
@@ -567,6 +583,7 @@ rule calc_n_sl:
 		"selscan --nsl --vcf {input.vcf} --out {params.outfile}"
 
 rule compile_poc_n_sl:
+###compiles the chromosome, position, and n_Sl calculated at all variants into a single text file 
 	input:
 		poc_nsl = expand(config["output"]+"selection/{project}_curtisigh01_nsl_{chromosome}.nsl.out", chromosome = curtisigh01_chr.keys(), allow_missing=True),
 	output:
@@ -576,6 +593,7 @@ rule compile_poc_n_sl:
 		"""for i in {input.poc_nsl}; do cat $i | while read ID POS AF L1 L2 NSL; do echo "${{i:45:2}} $POS $NSL" >> {output.poc_total}; done; done;"""
 
 rule compile_pow_n_sl:
+###compiles the chromosome, position, and n_Sl calculated at all variants into a single text file 
 	input:
 		pow_nsl = expand(config["output"]+"selection/{project}_wallikericr01_nsl_{chromosome}.nsl.out", chromosome = wallikericr01_chr.keys(), allow_missing=True),
 	output:
@@ -601,6 +619,8 @@ rule tajiima_d:
 
 
 rule select_tajima_d:
+###collects tajima's D values within certain windows and compiles into two files
+###one file shows the tajima's D within protein coding genes, the other does the same for exons only
 	input:
 		stats = config["output"]+"selection/{project}_{species}.Tajima.D",
 		genes = config["input_beds"]+ "{species}_genes.bed",
