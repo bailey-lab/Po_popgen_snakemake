@@ -1,5 +1,0 @@
-name: trimmomatic
-channels:
-  - bioconda
-dependencies:
-  - bioconda::trimmomatic=0.36
