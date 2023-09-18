@@ -1,0 +1,5 @@
+name: biallelic
+channels:
+  - bioconda
+dependencies:
+  - bioconda::gatk4=4.3.0.0
