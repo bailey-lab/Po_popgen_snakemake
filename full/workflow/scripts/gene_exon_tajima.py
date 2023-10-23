@@ -23,12 +23,12 @@ tajima_exons.writelines(stats[0])
 for i in range(1,(len(stats)-1)):
 	#define chrom, start position, number of variants, and tajima's D for the line being read in
 	chrom = stats[i].split("\t")[0]
-	start = stats[i].split("\t")[1]
-	n = stats[i].split("\t")[2]
+	start = int(stats[i].split("\t")[1])
+	n = int(stats[i].split("\t")[2])
 	tajima = stats[i].split("\t")[3].rstrip("\n")
 	geneflag = 0
 	exonflag = 0
-	window = snakemake.params.window
+	window = int(snakemake.params.window)
 	#If tajima is defined for this window, we will perform two for loops to check whether it falls within a gene or an exon
 	if tajima.lstrip("-").replace(".","").rstrip("\n").isnumeric():
 		#iterate through all genes in the gene bed file

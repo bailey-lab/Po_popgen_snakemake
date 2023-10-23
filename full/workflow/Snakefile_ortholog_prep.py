@@ -32,6 +32,10 @@ powsamples = []
 for f in open(config["input_lists"]+"dbimport_wallikericr01_speciescall_samplemap.txt").readlines():
         powsamples.append(f.split("\t")[0])
 
+pfsamples = []
+for f in open(config["input_lists"]+"dbimport_pf3d7_samplemap.txt").readlines():
+		pfsamples.append(f.split("\t")[0].rstrip("\n"))
+
 ###Determines the final files to be output by the snakemake pipeline
 rule all:
 #Previous rules should use wildcards for the project and species, but this final rule should employ the actual names and terms for the final file to be created
@@ -86,6 +90,40 @@ rule wallikericr01_coverage_overall:
 	shell:
 		"bedtools multiinter -i {input.beds} | awk '$4>={params.integer}' > {output}"
 
+###P. falciparum sample coverage rules
+
+rule pf_coverage_bed_files:
+### generate bed files for each sample by species call that show the intervals of the genome with over 5X covergae
+	input:
+		config["input"]+"pf_alignments/{samplename}_{species}.bam"
+	output:
+		config["output"]+"statistics/coverage_beds/{samplename}_{species}_cov{depth}.bed"
+	conda:
+		"envs/bedtools.yaml"
+	resources:
+		mem_mb = 20000
+	shell:
+		"bedtools genomecov -ibam {input} -bg | awk '$4>={wildcards.depth}' > {output}"
+		
+rule pf3d7_coverage_overall:
+### generate a bed file reflecting intervals where {prop} of samples had at least {cov_filter} coverage (see config.yaml)
+#use len(open(dbimportspeciescall).readlines())*0.8 to find threshold for including a window
+	input:
+		beds = expand(config["output"]+"statistics/coverage_beds/{samplename}_pf3d7_cov{depth}.bed", samplename = pfsamples, allow_missing = True),
+	output:
+		config["output"]+"statistics/coverage_beds/pf3d7_{prop}cov{depth}_unmerged.bed"
+	params:
+		integer = lambda wildcards, output: (float(wildcards.prop)*len(pfsamples)) if (float(wildcards.prop) * len(pfsamples)).is_integer() else int(float(wildcards.prop)*len(pfsamples))+1,
+		pf_count = len(pfsamples)
+	conda:
+		"envs/bedtools.yaml"
+	resources:
+		mem_mb = 20000
+	shell:
+		"""echo {params.integer};
+		echo {params.pf_count};
+		bedtools multiinter -i {input.beds} | awk '$4>={params.integer}' > {output}"""
+
 rule merge_coverage_intervals:
 ### take the coverage window bed files generated in the previous step and merge any directely adjacent windows into single windows with a buffer of 10bp
 # This means that continuous regions with at least 80% of samples giving 5X coverage will be combined into a single interval for ortholog masking
@@ -114,11 +152,15 @@ rule ortholog_masker:
 		pow_chr = config["input_beds"]+"wallikericr01_chr.bed",
 		pow_gene_mask = config["input_beds"]+"wallikericr01_genemask.bed",
 		pow_coverage_mask = config["output"]+"statistics/coverage_beds/wallikericr01_"+config["prop"]+"cov"+config["cov_filter"]+"_merged.bed",
-		pf_core = config["input_beds"]+"pf3d7_core.bed"	
+		pf_core = config["input_beds"]+"pf3d7_core.bed"	,
+		pf_coverage_mask = config["output"]+"statistics/coverage_beds/pf3d7_"+config["prop"]+"cov"+config["cov_filter"]+"_merged.bed",
 	output:
 		pf_orthos_masked = config["input_beds"]+config["pf_orthos_masked"],
 		poc_orthos_masked = config["input_beds"]+config["poc_orthos_masked"],
-		pow_orthos_masked = config["input_beds"]+config["pow_orthos_masked"],	
+		pow_orthos_masked = config["input_beds"]+config["pow_orthos_masked"],
+		pf_orthos_unfiltered = config["input_beds"]+config["pf_orthos_unfiltered"],	
+		poc_orthos_unfiltered = config["input_beds"]+config["poc_orthos_unfiltered"],
+		pow_orthos_unfiltered = config["input_beds"]+config["pow_orthos_unfiltered"],		
 	resources:
 		mem_mb = 20000	
 	script:

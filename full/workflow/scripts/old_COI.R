@@ -1,15 +1,20 @@
+####Older version; check longleaf for correct version
+
 #Complexity of Infection using Real McCoil
 #prepare data
 library("devtools")
+#install.packages("vcfR")
 library("vcfR")
 library("tidyverse")
-#setwd("/pine/scr/k/e/kellybce/ovale1r/novaseq/ov1variants/")
+setwd("~/Downloads")
 
-
-test <- vcfR::read.vcfR(snakemake@input[[1]])
-#test <- vcfR::read.vcfR("test_S11.vcf")
+file <-	"ov1_pf3d7-pf6k_masked_biallelicsnps_vqslodfiltermaf5miss80"
+test <- vcfR::read.vcfR(paste(c(file,".vcf.gz"),collapse=""))
+test <- vcfR::read.vcfR("ov1_curtisi_masked_biallelicsnps_hardfiltereddefmaf5miss80ld05.vcf")
+test <- vcfR::read.vcfR("test_S11.vcf")
+test <- vcfR::read.vcfR("ov1_wallikeriandmixed_masked_biallelicsnps_hardfiltereddefmaf5miss80.vcf")
 ad_drc <- vcfR::extract.gt(test, element = "AD", as.numeric = T)
-#vcfR::heatmap.bp(ad_drc) 
+vcfR::heatmap.bp(ad_drc) 
 
 loci <- test@fix[,1:2] %>% 
   tibble::as_tibble() %>% 
@@ -60,26 +65,42 @@ RMCL <- combined_long %>%
   tidyr::pivot_wider(names_from = "Indiv",
                      values_from = "gt")
 
+orig_wd <- getwd()
+setwd("~/Downloads/THEREALMcCOIL-master/categorical_method/")
+source("McCOIL_categorical.R")
+
+
+
+McCOIL_categorical(RMCL,
+                   maxCOI=25, threshold_ind=2,
+                   threshold_site=1,
+                   totalrun=1000, burnin=100, M0=15,
+                   e1=0.05, e2=0.05,
+                   err_method=3, 
+                   path=getwd(),
+                   output=orig_wd # Up from THEREALMcCOIL/categorical/
+)
+
+####For testing
+
 testsmpls <- colnames(test@gt)[2:ncol(test@gt)]
 test_RMCL <- RMCL[,c("loci", testsmpls)]
 
 test_RMCLmat <- as.matrix(test_RMCL[2:ncol(as.matrix(test_RMCL))])
 rownames(test_RMCLmat) <- test_RMCL[["loci"]]
 test_RMCLmat <- t(test_RMCLmat)
-#doubletest_RMCLmat <- matrix(rep(t(test_RMCLmat),2),ncol=ncol(test_RMCLmat),byrow=TRUE)
-#doubletest_RMCLmat <- doubletest_RMCLmat[1:2,1:5000]
+doubletest_RMCLmat <- matrix(rep(t(test_RMCLmat),2),ncol=ncol(test_RMCLmat),byrow=TRUE)
+doubletest_RMCLmat <- doubletest_RMCLmat[1:2,1:5000]
+
+
+#example dataset
+data0= read.table("~/Downloads/THEREALMcCOIL-master/categorical_method/input_test.txt", head=T)
+data = data0[1,2:33]
+data=data0[,-1]
+rownames(data)=data0[,1]
+data = t(data)
+McCOIL_categorical(data,maxCOI=25, threshold_ind=20, threshold_site=20, totalrun=1000, burnin=100, M0=15, e1=0.05, e2=0.05, err_method=3, path=getwd(), output="output_test.txt" )
 
 orig_wd <- getwd()
-#setwd("/pine/scr/k/e/kellybce/ovale1r/novaseq/ov1variants/statistics/")
-devtools::install_github("OJWatson/McCOILR")
-library("McCOILR")
-
-invisible(McCOIL_categorical(test_RMCLmat,
-                   maxCOI=snakemake@params[['maxcoi']], threshold_ind=snakemake@params[['threshold_ind']],
-                   threshold_site=snakemake@params[['threshold_site']],
-                   totalrun=snakemake@params[['totalrun']], burnin=snakemake@params[['burnin']], M0=15,
-                   e1=0.05, e2=0.05,
-                   err_method=3, 
-                   path=getwd(),
-                   output=snakemake@output[[1]] # Up from THEREALMcCOIL/categorical/
-))
+setwd("~/Downloads/THEREALMcCOIL-master/categorical_method/")
+source("McCOIL_categorical.R")

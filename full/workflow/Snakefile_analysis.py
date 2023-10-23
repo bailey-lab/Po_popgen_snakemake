@@ -14,9 +14,10 @@
 #	add bcftools normalize step before limiting to biallelic snps? Would left-align variants but otherwise might not be important if we then just exclude indels
 #  should tajima's D calculation include missing sites? currently not using sites with any missingness
 #  check hard filtering cutoffs
-#  add plink generation step
-#  add REALMcCOIL variant tabling step
-#  add wallikeri orthologs, check for 1-1-1 on orthomcl
+#  limit pi steps to smaller number of slurm jobs, don't parallelize so hard
+#  Examine whether pi is different when using the unfiltered set of orthologs instead of masked
+#  Add falciparum coverage filtering step
+#  Have nsl and tajima's D steps read in vcf without MAF filter to see if this changes, rare alleles may have selectio signatures
 #  collapse gzipping into a single general rule working with ".recode.vcf" or by combining into previous steps, using temporary() for the intermediate recoded unzipped vcfs
 #  generate coditional script to quality filter tag for ovale (and gzip), and just copy the falciparum files
 #  make chromosome vcf subsets temporary
@@ -38,21 +39,32 @@
 configfile: "config/config.yaml"
 
 
-###for ortholog filtering later, we must create sets of pf and poc orthologs
+###for ortholog filtering later, we must create sets of pf and poc orthologs. Switched to list format
 def parse_bed_file(bed_file):
-	gene_dict={}
+	gene_list=[]
 	for line in open(bed_file):
 		name = line.split("\t")[0]
 		chrom = line.split("\t")[1]
 		start = line.split("\t")[2]
 		stop = line.split("\t")[3]
 		window = int(stop) - int(start) + 1
-		gene_dict[name]= [chrom, start, stop, window]
-	return gene_dict
+		gene_list.append([name, chrom, start, stop, window])
+	return gene_list
 
-pf3d7_orthos = parse_bed_file(config["input_beds"]+ config["pf_orthos_masked"])
-curtisigh01_orthos = parse_bed_file(config["input_beds"]+config["poc_orthos_masked"])
-wallikericr01_orthos = parse_bed_file(config["input_beds"]+config["pow_orthos_masked"])
+#def parse_bed_file(bed_file):
+#	gene_dict={}
+#	for line in open(bed_file):
+#		name = line.split("\t")[0]
+#		chrom = line.split("\t")[1]
+#		start = line.split("\t")[2]
+#		stop = line.split("\t")[3]
+#		window = int(stop) - int(start) + 1
+#		gene_dict[name]= [chrom, start, stop, window]
+#	return gene_dict
+
+pf3d7_orthos_masked = parse_bed_file(config["input_beds"]+ config["pf_orthos_masked"])
+curtisigh01_orthos_masked = parse_bed_file(config["input_beds"]+config["poc_orthos_masked"])
+wallikericr01_orthos_masked = parse_bed_file(config["input_beds"]+config["pow_orthos_masked"])
 
 ###for nsl calculation, we also need a list of chromosome names for each species
 ###nSL is calculated for haplotypes on each chromosome, so we must subset vcfs by chromosome. This function derives a list of chromosome names from the chr.bed files
@@ -90,28 +102,39 @@ rule all:
 		#o_files= expand(config["output"]+"filtered_vcfs/{project}_{species}_{mixed}_masked_biallelic_filtertag.vcf.gz.tbi", species = ["wallikericr01", "curtisigh01"], mixed = ["only","andmixed"]),
 		#f_files = config["output"]+"filtered_vcfs/{project}_pf3d7_only_masked_biallelic_filtertag.vcf.gz.tbi"
 		pf_files = config["output"]+"filtered_vcfs/ov1_pf3d7_only_masked_biallelic_qfiltered.vcf.gz",
-		po_files = expand(config["output"]+"variant_tables/qfiltered/ov1_{species}_{mixed}_qfiltered.table", species = ["wallikericr01", "curtisigh01"], mixed = ["only","andmixed","all","speciescall"]),
+		po_files = expand(config["output"]+"variant_tables/qfiltered/ov1_{species}_{mixed}_qfiltered.table", species = ["wallikericr01", "curtisigh01"], mixed = ["speciescall"]),
 		#files = expand(config["output"]+"analysis_vcfs/ov1_{species}.vcf.gz", species = ["wallikericr01", "curtisigh01", "pf3d7"]),
 		#files = config["output"]+"analysis_vcfs/ov1_pf3d7.vcf.gz",
+		###Overal genome-wide statistics
+		overall_pi = expand(config["output"]+"stats/overall_snp_density/ov1_{species}_speciescall.snpden", species =  ["wallikericr01", "curtisigh01"]),
 		###COI Calculation
-		###coi = expand(config["output"]+"statistics/coi/{species}_{mixed}/ov1_{species}_{mixed}_coi.txt", species = ["wallikericr01", "curtisigh01"], mixed = ["speciescall"]),
-		###coi_pf = config["output"]+"statistics/coi/pf3d7_only/ov1_pf3d7_only_coi.txt",
+		coi = expand(config["output"]+"statistics/coi/{species}_{mixed}/ov1_{species}_{mixed}_coi.txt", species = ["wallikericr01", "curtisigh01"], mixed = ["speciescall"]),
+		coi_pf = config["output"]+"statistics/coi/pf3d7_only/ov1_pf3d7_only_coi.txt",
 		###Generate vcfs of monoclonal samples only
-		mono_files = expand(config["output"]+"sample_sets/ov1_{species}_{mixed}_monoclonal.vcf.gz", species = ["wallikericr01", "curtisigh01"], mixed = ["only","andmixed","all","speciescall"]),
+		mono_files = expand(config["output"]+"sample_sets/ov1_{species}_{mixed}_monoclonal.vcf.gz", species = ["wallikericr01", "curtisigh01"], mixed = ["speciescall"]),
 		mono_pf_file = config["output"]+"sample_sets/ov1_pf3d7_only_monoclonal.vcf.gz",
 		###Generate plink files for PCA
-		po_plink = expand(config["output"]+"plink/pca_ldpruned-"+config["plink"]["window"]+"-"+config["plink"]["step"]+"-"+config["plink"]["r2"]+"/ov1_{species}_{mixed}/ov1_{species}_{mixed}.eigenvec", species = ["wallikericr01", "curtisigh01"], mixed = ["only","andmixed","all","speciescall"]),
+		po_plink = expand(config["output"]+"plink/pca_ldpruned-"+config["plink"]["window"]+"-"+config["plink"]["step"]+"-"+config["plink"]["r2"]+"/ov1_{species}_speciescall/ov1_{species}_speciescall.eigenvec", species = ["wallikericr01", "curtisigh01"]),
 		pf_plink = config["output"]+"plink/pca_ldpruned-"+config["plink"]["window"]+"-"+config["plink"]["step"]+"-"+config["plink"]["r2"]+"/ov1_pf3d7_only/ov1_pf3d7_only.eigenvec",
+		###Admixture
+		po_clusters = expand(config["output"]+"plink/ldpruned-"+config["plink"]["window"]+"-"+config["plink"]["step"]+"-"+config["plink"]["r2"]+"/ov1_{species}_speciescall/run1/ov1_{species}_speciescall.clusters{cluster}.log", species = ["wallikericr01", "curtisigh01"], cluster = ["1","2","3","4","5","6","7","8","9","10","11","12","13","14","15"]),
+		pf_clusters = expand(config["output"]+"plink/ldpruned-"+config["plink"]["window"]+"-"+config["plink"]["step"]+"-"+config["plink"]["r2"]+"/ov1_pf3d7_only/run1/ov1_pf3d7_only.clusters{cluster}.log", cluster = ["1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18"]),
 		###ortholog subsetting, processing, and management
-		#vcfspo = expand(config["output"]+"orthologs/vcfs/ov1_curtisigh01_{geneid}.vcf.gz", geneid=curtisigh01_orthos.keys()),
-		#vcfspf = expand(config["output"]+"orthologs/vcfs/ov1_pf3d7_{geneid}.vcf.gz", geneid=pf3d7_orthos.keys()),
+		#poc_unthreaded_pi = expand(config["output"]+"orthologs/stats/ov1_curtisigh01_speciescall-{pogeneid}_masked.windowed.pi", pogeneid = list(i[0] for i in curtisigh01_orthos_masked)),
+		#pow_unthreaded_pi = expand(config["output"]+"orthologs/stats/ov1_wallikericr01_speciescall-{pogeneid}_masked.windowed.pi", pogeneid = list(i[0] for i in wallikericr01_orthos_masked)),
+		#pf_unthreaded_pi = expand(config["output"]+"orthologs/stats/ov1_pf3d7_only-{pfgeneid}_masked.windowed.pi", pfgeneid = list(i[0] for i in pf3d7_orthos_masked)),
+		#poc_selected = expand(config["output"]+"orthologs/stats/ov1_curtisigh01_speciescall-{pogeneid}_masked_pi.txt", pogeneid = list(i[0] for i in curtisigh01_orthos_masked)), 
 		#popi = expand(config["output"]+"orthologs/stats/ov1_curtisigh01_{geneid}.windowed.pi", geneid=curtisigh01_orthos.keys()),
 		#pfpi = expand(config["output"]+"orthologs/stats/ov1_pf3d7_{geneid}.windowed.pi", geneid=pf3d7_orthos.keys()),
 		#pfpi = expand(config["output"]+"orthologs/stats/ov1_pf3d7_{geneid}_pi.txt", geneid=pf3d7_orthos.keys()),
 		#popi = expand(config["output"]+"orthologs/stats/ov1_curtisigh01_{geneid}_pi.txt", geneid=curtisigh01_orthos.keys()),
-		pfpi = config["output"]+"orthologs/overall/ov1_pf3d7_only_ortholog_pi.txt",
-		pocpi = config["output"]+"orthologs/overall/ov1_curtisigh01_speciescall_ortholog_pi.txt",
-		powpi = config["output"]+"orthologs/overall/ov1_wallikericr01_speciescall_ortholog_pi.txt",
+
+		### DO NOT RUN PI calculations until I have limited the number of slurm jobs that will be submitted
+
+		pfpi = expand(config["output"]+"orthologs/overall/ov1_pf3d7_only_ortholog_{masked}_pi.txt", masked = ["masked"]),
+		pocpi = expand(config["output"]+"orthologs/overall/ov1_curtisigh01_speciescall_ortholog_{masked}_pi.txt", masked = ["masked"]),
+		powpi = expand(config["output"]+"orthologs/overall/ov1_wallikericr01_speciescall_ortholog_{masked}_pi.txt", masked = ["masked"]),
+
 		###Selection signals###
 		#nomissvcf = expand(config["output"]+"sample_sets/ov1_{species}_monoclonal_nomissing.vcf.gz", species = ["wallikericr01", "curtisigh01", "pf3d7"]),
 		pfnsl = expand(config["output"]+"selection/ov1_pf3d7_only_nsl_{chromosome}.nsl.out", chromosome = pf3d7_chr.keys()),
@@ -119,9 +142,11 @@ rule all:
 		pownsl = expand(config["output"]+"selection/ov1_wallikericr01_speciescall_nsl_{chromosome}.nsl.out", chromosome = wallikericr01_chr.keys()),
 		#nsl_compile_poc = config["output"]+"selection/ov1_curtisigh01_speciescall_nsl_total.txt",
 		nsl_compile = expand(config["output"]+"selection/ov1_{species}_speciescall_nsl_total.txt", species = ["wallikericr01", "curtisigh01"]),
+		nsl_pf_compile = config["output"]+"selection/ov1_pf3d7_only_nsl_total.txt",
 		### Tajima's D calculations
 		tajimad = expand(config["output"]+"selection/ov1_{species}_speciescall.Tajima.D", species = ["wallikericr01", "curtisigh01"]),
 		tajima_compiled = expand(config["output"]+"selection/ov1_{species}_speciescall_tajimad_{elements}.txt", species = ["wallikericr01", "curtisigh01"], elements = ["genes","exons"]),
+		tajima_pf_compiled = expand(config["output"]+"selection/ov1_pf3d7_only_tajimad_{elements}.txt", elements = ["genes","exons"]),
 		###Snakemake administrative###
 		config = config["output"]+"pipeline/config.yaml",
 		snakefile = config["output"]+"pipeline/Snakefile_analysis.py"
@@ -351,16 +376,88 @@ rule final_set:
 	shell:
 		"cp {input} {output}"
 
+rule final_table:
+	input:
+		config["output"]+"analysis_vcfs/{project}_{species}_{mixed}.vcf.gz"
+	output:
+		config["output"]+"analysis_tabless/{project}_{species}_{mixed}.table"
+	conda:
+		"envs/gatk.yaml"
+	shell:
+		"gatk VariantsToTable -V {input} -F CHROM -F POS -F QD -F FS -F SOR -F MQ -F MQRankSum -F ReadPosRankSum -O {output}"
+
 
 rule index_final_vcfs:
 	input:
-		config["output"]+"analysis_vcfs/{project}_{species}_{mixed}.vcf.gz"
+		vcf = config["output"]+"analysis_vcfs/{project}_{species}_{mixed}.vcf.gz",
+		table = config["output"]+"analysis_tables/{project}_{species}_{mixed}.table"
 	output:
 		config["output"]+"analysis_vcfs/{project}_{species}_{mixed}.vcf.gz.tbi"
 	conda:
 		"envs/masker.yaml"
 	shell:
-		"""bcftools index -t {input}"""
+		"""bcftools index -t {input.vcf}"""
+
+
+
+### Create final vcfs without minor allele frequency filter
+###only keep sites which are present (nonmissing) in XX% of samples
+rule filter_missing_allmaf:
+	input:
+		config["output"]+"filtered_vcfs/{project}_{species}_{mixed}_masked_biallelic_qfiltered.vcf.gz"
+	output:
+		config["output"]+"filtered_vcfs/{project}_{species}_{mixed}_masked_biallelic_qmissfiltered.vcf.gz"
+	conda:
+		"envs/filter.yaml"
+	shell:
+#This command limits the vcf to sites which were present in at least 80% of individuals
+		"vcftools --gzvcf {input} --out {output} --max-missing 0.8 --recode --stdout | bgzip > {output}"
+
+###Creates final cleaned vcf for downstream analysis
+rule final_set_allmaf:
+#moves annotated processed vcfs to a new directory for further analysis
+#vcfs in the analysis_vcfs directory have been limited to the core genome (in ovale, this means chromosomal contigs with a specific list 
+# of hypervariable genes manually masked based on Rutledge 2017; limited to biallelic snps; and quality filtered by hard thresholds (in ovale) or the 
+# default VQSLOD filter applied in the Pf6k dataset (for falciparum), minor allele frequency of 5%, and presence in >80% of samples 
+	input:
+		config["output"]+"filtered_vcfs/{project}_{species}_{mixed}_masked_biallelic_qmissfiltered.vcf.gz"
+	output:
+		config["output"]+"allmaf_analysis_vcfs/{project}_{species}_{mixed}.vcf.gz"
+	shell:
+		"cp {input} {output}"
+
+
+rule index_final_vcfs_allmaf:
+	input:
+		vcf = config["output"]+"allmaf_analysis_vcfs/{project}_{species}_{mixed}.vcf.gz",
+		#table = config["output"]+"allmaf_analysis_tables/{project}_{species}_{mixed}.table"
+	output:
+		config["output"]+"allmaf_analysis_vcfs/{project}_{species}_{mixed}.vcf.gz.tbi"
+	conda:
+		"envs/masker.yaml"
+	shell:
+		"""bcftools index -t {input.vcf}"""
+
+
+rule overall_snp_density:
+#calculates genome-wide SNP density per 1Kb
+	input:
+		config["output"]+"allmaf_analysis_vcfs/{project}_{species}_{mixed}.vcf.gz"
+	output:
+		config["output"]+"statistics/overall_snp_density/{project}_{species}_{mixed}.snpden"
+	params:
+		outfile = config["output"]+"statistics/overall_snp_density/{project}_{species}_{mixed}"
+	conda:
+		"envs/filter.yaml"
+	shell:
+		"""vcftools --gzvcf {input} --SNPdensity 1000 --out {params.outfile}"""
+
+###To calculate SNP Density at various regions of the genome, we must import bed files of genes, exons, CDS from the gff file
+### a bed file of chromosome sizes can be produced from the chromosome bed file using : cat curtisigh01_chr.bed | while read CHROM START STOP; do echo -e "$CHROM\t$STOP" >> curtisigh01_chrsize.bed; done
+
+
+
+
 
 ### Section ___: generate outfiles for calculation of Complexity of Infection using THEREALMcCOIL
 
@@ -397,6 +494,20 @@ rule subset_monoclonal:
 		reference = config["input_genomes"]+"{species}.fasta"
 	output:
 		config["output"]+"sample_sets/{project}_{species}_{mixed}_monoclonal.vcf.gz"
+	conda:
+		"envs/biallelic.yaml"
+	shell:
+		"gatk SelectVariants --exclude-sample-name {input.samplelist} -R {input.reference} -V {input.vcf} -O {output}"
+
+rule subset_monoclonal_allmaf:
+###excludes polyclonal samples, as determined using RealMcCOIl
+	input:
+		vcf = config["output"]+"allmaf_analysis_vcfs/{project}_{species}_{mixed}.vcf.gz",
+		index = config["output"]+"allmaf_analysis_vcfs/{project}_{species}_{mixed}.vcf.gz.tbi",
+		samplelist = config["input_lists"] + "{project}_polyclonalsamples.args",
+		reference = config["input_genomes"]+"{species}.fasta"
+	output:
+		config["output"]+"sample_sets/{project}_{species}_{mixed}_monoclonal_allmaf.vcf.gz"
 	conda:
 		"envs/biallelic.yaml"
 	shell:
@@ -449,11 +560,12 @@ rule ld_mark_plink:
 		'''plink --bfile {params.infile} --indep-pairwise {params.window} {params.step} {params.r2} --allow-extra-chr --out {params.outfile}'''
 
 
-rule ld_filter_plink:
+rule ld_filter_prune:
 	input:
 		config["output"]+"plink/ldmarked-"+config["plink"]["window"]+"-"+config["plink"]["step"]+"-"+config["plink"]["r2"]+"/{project}_{species}_{mixed}/{project}_{species}_{mixed}.prune.in"
 	output:
-		config["output"]+"plink/ldpruned-"+config["plink"]["window"]+"-"+config["plink"]["step"]+"-"+config["plink"]["r2"]+"/{project}_{species}_{mixed}/{project}_{species}_{mixed}.bed"
+		bed = config["output"]+"plink/ldpruned-"+config["plink"]["window"]+"-"+config["plink"]["step"]+"-"+config["plink"]["r2"]+"/{project}_{species}_{mixed}/{project}_{species}_{mixed}.bed",
+		bim = config["output"]+"plink/ldpruned-"+config["plink"]["window"]+"-"+config["plink"]["step"]+"-"+config["plink"]["r2"]+"/{project}_{species}_{mixed}/{project}_{species}_{mixed}.bim"
 	params:
 		infile = config["output"]+"plink/monoclonal/{project}_{species}_{mixed}/{project}_{species}_{mixed}",
 		selectfile = config["output"]+"plink/ldmarked-"+config["plink"]["window"]+"-"+config["plink"]["step"]+"-"+config["plink"]["r2"]+"/{project}_{species}_{mixed}/{project}_{species}_{mixed}.prune.in",
@@ -467,7 +579,7 @@ rule pca_plink:
 	input:
 		config["output"]+"plink/ldpruned-"+config["plink"]["window"]+"-"+config["plink"]["step"]+"-"+config["plink"]["r2"]+"/{project}_{species}_{mixed}/{project}_{species}_{mixed}.bed"
 	output:
-		config["output"]+"plink/pca_ldpruned-"+config["plink"]["window"]+"-"+config["plink"]["step"]+"-"+config["plink"]["r2"]+"/{project}_{species}_{mixed}/{project}_{species}_{mixed}.eigenvec"
+		eigen = config["output"]+"plink/pca_ldpruned-"+config["plink"]["window"]+"-"+config["plink"]["step"]+"-"+config["plink"]["r2"]+"/{project}_{species}_{mixed}/{project}_{species}_{mixed}.eigenvec",
 	params:
 		infile = config["output"]+"plink/ldpruned-"+config["plink"]["window"]+"-"+config["plink"]["step"]+"-"+config["plink"]["r2"]+"/{project}_{species}_{mixed}/{project}_{species}_{mixed}",
 		outfile = config["output"]+"plink/pca_ldpruned-"+config["plink"]["window"]+"-"+config["plink"]["step"]+"-"+config["plink"]["r2"]+"/{project}_{species}_{mixed}/{project}_{species}_{mixed}"
@@ -475,208 +587,325 @@ rule pca_plink:
 		"envs/plink.yaml"
 	shell:
 		'plink --bfile {params.infile} --pca "var-wts" header --allow-extra-chr --out {params.outfile}'
+
+rule bim_alter_admixture:
+###replaces non-human chromosome names so this can be read by ADMIXTURE
+	input:
+		bim = config["output"]+"plink/ldpruned-"+config["plink"]["window"]+"-"+config["plink"]["step"]+"-"+config["plink"]["r2"]+"/{project}_{species}_{mixed}/{project}_{species}_{mixed}.bim",
+	output:
+		bim = config["output"]+"plink/ldpruned-"+config["plink"]["window"]+"-"+config["plink"]["step"]+"-"+config["plink"]["r2"]+"/{project}_{species}_{mixed}/{project}_{species}_{mixed}.origchrom.bim"
+	params:
+		tempbim = config["output"]+"plink/ldpruned-"+config["plink"]["window"]+"-"+config["plink"]["step"]+"-"+config["plink"]["r2"]+"/{project}_{species}_{mixed}/{project}_{species}_{mixed}.temp.bim"
+	conda:
+		"envs/admixture.yaml"
+	shell:
+		"""cp {input.bim} {output.bim}
+		awk '{{$1="0";print $0}}' {input.bim} > {params.tempbim}
+		mv {params.tempbim} {input.bim}"""
+
+rule admixture:
+###for specified a priori cluster counts, assigns samples to clusters and reports cross-calidation error 10 times for each cluster count
+### cross-validation error can be checked with the following bash code:
+###for n in {min_cluster..max_cluster}; do for i in run*/*clusters${n}.log; do cat $i | grep "CV"; done; done
+	input:
+		bed = config["output"]+"plink/ldpruned-"+config["plink"]["window"]+"-"+config["plink"]["step"]+"-"+config["plink"]["r2"]+"/{project}_{species}_{mixed}/{project}_{species}_{mixed}.bed",
+		#origchrom.bim only needed to ensure rule bim_alter_admixture was run previously
+		bim = config["output"]+"plink/ldpruned-"+config["plink"]["window"]+"-"+config["plink"]["step"]+"-"+config["plink"]["r2"]+"/{project}_{species}_{mixed}/{project}_{species}_{mixed}.origchrom.bim"
+	output:
+		config["output"]+"plink/ldpruned-"+config["plink"]["window"]+"-"+config["plink"]["step"]+"-"+config["plink"]["r2"]+"/{project}_{species}_{mixed}/run1/{project}_{species}_{mixed}.clusters{cluster}.log"
+	params:
+		cluster = lambda wildcards, output: wildcards.cluster,
+		workdir = config["output"]+"plink/ldpruned-"+config["plink"]["window"]+"-"+config["plink"]["step"]+"-"+config["plink"]["r2"]+"/{project}_{species}_{mixed}/",
+		relout = "{project}_{species}_{mixed}.clusters{cluster}.log",
+		relbed = "../{project}_{species}_{mixed}.bed"
+	conda:
+		"envs/admixture.yaml"
+	shell:
+		"""cd {params.workdir};
+		for k in {{1..10}}; do mkdir -p run${{k}}; cd run${{k}}; admixture --cv {params.relbed} {params.cluster} > {params.relout}; cd ..; done
+		cd ../../../..;
+		echo $PWD"""
 	
 
 
 ### Section ___: Calculate nucleotide diversity (pi) for 1-to-1-to-1 orthologs of PocGH01, PowCR01, and Pf3D7
 
-		
-###create distinct vcf files for each one-to-one-to-one ortholog between PocGH01, PowCR01, and Pf3D7
+#rule calculate_poc_ortho_pi:
+###outputs individual summary files for each set of orthologs containing the pi of each ortholog
+#	input:
+#		povcf = config["output"]+"sample_sets/{project}_curtisigh01_{mixed}_monoclonal.vcf.gz",
+#		poc_orthos_masked = config["input_beds"]+"curtisigh01_pf-poc-pow_orthologs_{masked}.tsv"
+#	output:
+#		popi = config["output"]+"orthologs/stats/{project}_curtisigh01_{mixed}-{pogeneid}_{masked}.windowed.pi"
+#	params:
+#		pooutfile = config["output"]+"orthologs/stats/{project}_curtisigh01_{mixed}-{pogeneid}_{masked}",
+#		chrom = lambda wildcards, output: list(curtisigh01_orthos[wildcards.pogeneid])[0],
+#		start = lambda wildcards, output: list(curtisigh01_orthos[wildcards.pogeneid])[1],
+#		stop = lambda wildcards, output: list(curtisigh01_orthos[wildcards.pogeneid])[2],
+#		window = lambda wildcards, output: list(curtisigh01_orthos[wildcards.pogeneid])[3]
+#	conda:
+#		"envs/filter.yaml"
+#	resources:
+#		mem_mb = 20
+#	shell:
+#		"""vcftools --gzvcf {input.povcf} --out {params.pooutfile}  --chr {params.chrom} --from-bp {params.start} --to-bp {params.stop} --window-pi {params.window} --window-pi-step 1"""
 
-rule subset_poc_orthologs:
-###Accepts vcfs and a modified bed file (with gene IDs, chromosome IDs, and start/stop positions of 1-to-1 orthologs)
-###and subsets to those loci, outputting a unique vcf for SNPs within each gene
-	input:
-		povcf = config["output"]+"sample_sets/{project}_curtisigh01_{mixed}_monoclonal.vcf.gz",
-		poc_orthos_masked = config["input_beds"]+ config["poc_orthos_masked"]
-	output: 
-		config["output"]+"orthologs/vcfs/{project}_curtisigh01_{mixed}-{pogeneid}.recode.vcf"
-	params:
-		pooutfile = config["output"]+"orthologs/vcfs/{project}_curtisigh01_{mixed}-{pogeneid}",
-		chrom = lambda wildcards, output: list(curtisigh01_orthos[wildcards.pogeneid])[0],
-		start = lambda wildcards, output: list(curtisigh01_orthos[wildcards.pogeneid])[1],
-		stop = lambda wildcards, output: list(curtisigh01_orthos[wildcards.pogeneid])[2]
-	conda:
-		"envs/filter.yaml"
-	shell:
-		"""vcftools --gzvcf {input.povcf} --out {params.pooutfile} --chr {params.chrom} --from-bp {params.start} --to-bp {params.stop} --recode --recode-INFO-all"""
-
-rule subset_pow_orthologs:
-###Accepts vcfs and a modified bed file (with gene IDs, chromosome IDs, and start/stop positions of 1-to-1 orthologs)
-###and subsets to those loci, outputting a unique vcf for SNPs within each gene
-	input:
-		povcf = config["output"]+"sample_sets/{project}_wallikericr01_{mixed}_monoclonal.vcf.gz",
-		pow_orthos_masked = config["input_beds"]+ config["pow_orthos_masked"]
-	output: 
-		config["output"]+"orthologs/vcfs/{project}_wallikericr01_{mixed}-{pogeneid}.recode.vcf"
-	params:
-		pooutfile = config["output"]+"orthologs/vcfs/{project}_wallikericr01_{mixed}-{pogeneid}",
-		chrom = lambda wildcards, output: list(wallikericr01_orthos[wildcards.pogeneid])[0],
-		start = lambda wildcards, output: list(wallikericr01_orthos[wildcards.pogeneid])[1],
-		stop = lambda wildcards, output: list(wallikericr01_orthos[wildcards.pogeneid])[2]
-	conda:
-		"envs/filter.yaml"
-	shell:
-		"""vcftools --gzvcf {input.povcf} --out {params.pooutfile} --chr {params.chrom} --from-bp {params.start} --to-bp {params.stop} --recode --recode-INFO-all"""
-		
-rule subset_pf_orthologs:
-###Accepts vcfs and a modified bed file (with gene IDs, chromosome IDs, and start/stop positions of 1-to-1 orthologs)
-###and subsets to those loci, outputting a unique vcf for SNPs within each gene
-	input:
-		pfvcf = config["output"]+"sample_sets/{project}_pf3d7_{mixed}_monoclonal.vcf.gz",
-		pf_orthos_masked = config["input_beds"]+ config["pf_orthos_masked"]
-	output:
-		config["output"]+"orthologs/vcfs/{project}_pf3d7_{mixed}-{pfgeneid}.recode.vcf"
-	params:
-		pfoutfile = config["output"]+"orthologs/vcfs/{project}_pf3d7_{mixed}-{pfgeneid}",
-		chrom = lambda wildcards, output: list(pf3d7_orthos[wildcards.pfgeneid])[0],
-		start = lambda wildcards, output: list(pf3d7_orthos[wildcards.pfgeneid])[1],
-		stop = lambda wildcards, output: list(pf3d7_orthos[wildcards.pfgeneid])[2]
-	conda:
-		"envs/filter.yaml"
-	shell:
-		"""vcftools --gzvcf {input.pfvcf} --out {params.pfoutfile} --chr {params.chrom} --from-bp {params.start} --to-bp {params.stop} --recode --recode-INFO-all"""
-
-rule gzip_orthologs:
-	input:
-		genes = config["output"]+"orthologs/vcfs/{project}_{species}_{mixed}-{geneid}.recode.vcf"
-	output:
-		outfile = config["output"]+"orthologs/vcfs/{project}_{species}_{mixed}-{geneid}.vcf.gz"
-	shell:
-		"bgzip -c {input.genes} > {output.outfile}"
-
-rule calculate_poc_ortho_pi:
+rule unthreaded_calculate_poc_ortho_masked_pi:
 ###outputs individual summary files for each set of orthologs containing the pi of each ortholog
 	input:
-		povcf = config["output"]+"sample_sets/{project}_curtisigh01_{mixed}_monoclonal.vcf.gz",
-		poc_orthos_masked = config["input_beds"]+config["poc_orthos_masked"]
+		vcf = config["output"]+"sample_sets/{project}_curtisigh01_{mixed}_monoclonal_allmaf.vcf.gz"
 	output:
-		popi = config["output"]+"orthologs/stats/{project}_curtisigh01_{mixed}-{pogeneid}.windowed.pi"
+		pi = expand(config["output"]+"orthologs/stats/{project}_curtisigh01_{mixed}-{pogeneid}_masked.windowed.pi", pogeneid = list(i[0] for i in curtisigh01_orthos_masked), allow_missing =True)
 	params:
-		pooutfile = config["output"]+"orthologs/stats/{project}_curtisigh01_{mixed}-{pogeneid}",
-		chrom = lambda wildcards, output: list(curtisigh01_orthos[wildcards.pogeneid])[0],
-		start = lambda wildcards, output: list(curtisigh01_orthos[wildcards.pogeneid])[1],
-		stop = lambda wildcards, output: list(curtisigh01_orthos[wildcards.pogeneid])[2],
-		window = lambda wildcards, output: list(curtisigh01_orthos[wildcards.pogeneid])[3]
+		outfile = expand(config["output"]+"orthologs/stats/{project}_curtisigh01_{mixed}-{pogeneid}_masked",pogeneid = list(i[0] for i in curtisigh01_orthos_masked), allow_missing =True),
+		ortholist = curtisigh01_orthos_masked
 	conda:
 		"envs/filter.yaml"
-	shell:
-		"""vcftools --gzvcf {input.povcf} --out {params.pooutfile}  --chr {params.chrom} --from-bp {params.start} --to-bp {params.stop} --window-pi {params.window} --window-pi-step 1"""
+	resources:
+		mem_mb = 40000
+	script:
+		"scripts/ortholog_window_pi.py"
 
-rule calculate_pow_ortho_pi:
+rule unthreaded_calculate_pow_ortho_masked_pi:
 ###outputs individual summary files for each set of orthologs containing the pi of each ortholog
 	input:
-		povcf = config["output"]+"sample_sets/{project}_wallikericr01_{mixed}_monoclonal.vcf.gz",
-		pow_orthos_masked = config["input_beds"]+config["pow_orthos_masked"]
+		vcf = config["output"]+"sample_sets/{project}_wallikericr01_{mixed}_monoclonal_allmaf.vcf.gz"
 	output:
-		popi = config["output"]+"orthologs/stats/{project}_wallikericr01_{mixed}-{pogeneid}.windowed.pi"
+		pi = expand(config["output"]+"orthologs/stats/{project}_wallikericr01_{mixed}-{pogeneid}_masked.windowed.pi", pogeneid = list(i[0] for i in wallikericr01_orthos_masked), allow_missing =True)
 	params:
-		pooutfile = config["output"]+"orthologs/stats/{project}_wallikericr01_{mixed}-{pogeneid}",
-		chrom = lambda wildcards, output: list(wallikericr01_orthos[wildcards.pogeneid])[0],
-		start = lambda wildcards, output: list(wallikericr01_orthos[wildcards.pogeneid])[1],
-		stop = lambda wildcards, output: list(wallikericr01_orthos[wildcards.pogeneid])[2],
-		window = lambda wildcards, output: list(wallikericr01_orthos[wildcards.pogeneid])[3]
+		outfile = expand(config["output"]+"orthologs/stats/{project}_wallikericr01_{mixed}-{pogeneid}_masked",pogeneid = list(i[0] for i in wallikericr01_orthos_masked), allow_missing =True),
+		ortholist = wallikericr01_orthos_masked
 	conda:
 		"envs/filter.yaml"
-	shell:
-		"""vcftools --gzvcf {input.povcf} --out {params.pooutfile}  --chr {params.chrom} --from-bp {params.start} --to-bp {params.stop} --window-pi {params.window} --window-pi-step 1"""
+	resources:
+		mem_mb = 40000
+	script:
+		"scripts/ortholog_window_pi.py"
+
+rule unthreaded_calculate_pf_ortho_masked_pi:
+###outputs individual summary files for each set of orthologs containing the pi of each ortholog
+	input:
+		vcf = config["output"]+"sample_sets/{project}_pf3d7_{mixed}_monoclonal_allmaf.vcf.gz"
+	output:
+		pi = expand(config["output"]+"orthologs/stats/{project}_pf3d7_{mixed}-{geneid}_masked.windowed.pi", geneid = list(i[0] for i in pf3d7_orthos_masked), allow_missing =True)
+	params:
+		outfile = expand(config["output"]+"orthologs/stats/{project}_pf3d7_{mixed}-{geneid}_masked",geneid = list(i[0] for i in pf3d7_orthos_masked), allow_missing =True),
+		ortholist = pf3d7_orthos_masked
+	conda:
+		"envs/filter.yaml"
+	resources:
+		mem_mb = 40000
+	script:
+		"scripts/ortholog_window_pi.py"
+
+
+#rule calculate_pow_ortho_pi:
+###outputs individual summary files for each set of orthologs containing the pi of each ortholog
+#	input:
+#		povcf = config["output"]+"sample_sets/{project}_wallikericr01_{mixed}_monoclonal.vcf.gz",
+#		pow_orthos_masked = config["input_beds"]+"wallikericr01_pf-poc-pow_orthologs_{masked}.tsv"
+#	output:
+#		popi = config["output"]+"orthologs/stats/{project}_wallikericr01_{mixed}-{pogeneid}_{masked}.windowed.pi"
+#	params:
+#		pooutfile = config["output"]+"orthologs/stats/{project}_wallikericr01_{mixed}-{pogeneid}_{masked}",
+#		chrom = lambda wildcards, output: list(wallikericr01_orthos[wildcards.pogeneid])[0],
+#		start = lambda wildcards, output: list(wallikericr01_orthos[wildcards.pogeneid])[1],
+#		stop = lambda wildcards, output: list(wallikericr01_orthos[wildcards.pogeneid])[2],
+#		window = lambda wildcards, output: list(wallikericr01_orthos[wildcards.pogeneid])[3]
+#	conda:
+#		"envs/filter.yaml"
+#	resources:
+#		mem_mb = 20
+#	shell:
+#		"""vcftools --gzvcf {input.povcf} --out {params.pooutfile}  --chr {params.chrom} --from-bp {params.start} --to-bp {params.stop} --window-pi {params.window} --window-pi-step 1"""
 
 	
-rule calculate_pf_ortho_pi:
+#rule calculate_pf_ortho_pi:
 ###outputs individual summary files for each set of orthologs containing the pi of each ortholog
-	input:
-		pfvcf = config["output"]+"sample_sets/{project}_pf3d7_{mixed}_monoclonal.vcf.gz",
-		pf_orthos_masked = config["input_beds"]+config["pf_orthos_masked"]
-	output:
-		pfpi = config["output"]+"orthologs/stats/{project}_pf3d7_{mixed}-{pfgeneid}.windowed.pi"
-	params:
-		pfoutfile = config["output"]+"orthologs/stats/{project}_pf3d7_{mixed}-{pfgeneid}",
-		chrom = lambda wildcards, output: list(pf3d7_orthos[wildcards.pfgeneid])[0],
-		start = lambda wildcards, output: list(pf3d7_orthos[wildcards.pfgeneid])[1],
-		stop = lambda wildcards, output: list(pf3d7_orthos[wildcards.pfgeneid])[2],
-		window = lambda wildcards, output: list(pf3d7_orthos[wildcards.pfgeneid])[3]
-	conda:
-		"envs/filter.yaml"
-	shell:
-		"""vcftools --gzvcf {input.pfvcf} --out {params.pfoutfile}  --chr {params.chrom} --from-bp {params.start} --to-bp {params.stop} --window-pi {params.window} --window-pi-step 1"""
-	
-rule select_pfpi:
+#	input:
+#		pfvcf = config["output"]+"sample_sets/{project}_pf3d7_{mixed}_monoclonal.vcf.gz",
+#		pf_orthos_masked = config["input_beds"]+"pf3d7_pf-poc-pow_orthologs_{masked}.tsv"
+#	output:
+#		pfpi = config["output"]+"orthologs/stats/{project}_pf3d7_{mixed}-{pfgeneid}_{masked}.windowed.pi"
+#	params:
+#		pfoutfile = config["output"]+"orthologs/stats/{project}_pf3d7_{mixed}-{pfgeneid}_{masked}",
+#		chrom = lambda wildcards, output: list(pf3d7_orthos[wildcards.pfgeneid])[0],
+#		start = lambda wildcards, output: list(pf3d7_orthos[wildcards.pfgeneid])[1],
+#		stop = lambda wildcards, output: list(pf3d7_orthos[wildcards.pfgeneid])[2],
+#		window = lambda wildcards, output: list(pf3d7_orthos[wildcards.pfgeneid])[3]
+#	conda:
+#		"envs/filter.yaml"
+#	resources:
+#		mem_mb = 20
+#	shell:
+#		"""vcftools --gzvcf {input.pfvcf} --out {params.pfoutfile}  --chr {params.chrom} --from-bp {params.start} --to-bp {params.stop} --window-pi {params.window} --window-pi-step 1"""
+#	
+#rule select_pfpi:
 ###selects the particular windows that correspond to each ortholog's genomic window and appends to an output file for that ortholog
-	input:
-		pfpi = config["output"]+"orthologs/stats/{project}_pf3d7_{mixed}-{pfgeneid}.windowed.pi"
-	output:
-		pfpitable = config["output"]+"orthologs/stats/{project}_pf3d7_{mixed}-{pfgeneid}_pi.txt"
-	params:
-		chrom = lambda wildcards, output: list(pf3d7_orthos[wildcards.pfgeneid])[0],
-		start = lambda wildcards, output: list(pf3d7_orthos[wildcards.pfgeneid])[1],
-		stop = lambda wildcards, output: list(pf3d7_orthos[wildcards.pfgeneid])[2],
-		window = lambda wildcards, output: list(pf3d7_orthos[wildcards.pfgeneid])[3]
-	shell:
-		'''if cat {input.pfpi} | while read CHROM START END N_VARIANTS PI; do echo "{wildcards.pfgeneid} $CHROM $START $END $N_VARIANTS $PI"; done | grep "{params.start} {params.stop}"; then
-		cat {input.pfpi} | while read CHROM START END N_VARIANTS PI; do echo "{wildcards.pfgeneid} $CHROM $START $END $N_VARIANTS $PI"; done | grep "{params.start} {params.stop}" >> {output.pfpitable};
-		else echo "{wildcards.pfgeneid} {params.chrom} {params.start} {params.stop} 0 0" >> {output.pfpitable};fi'''
+#	input:
+#		pfpi = config["output"]+"orthologs/stats/{project}_pf3d7_{mixed}-{pfgeneid}_{masked}.windowed.pi"
+#	output:
+#		pfpitable = config["output"]+"orthologs/stats/{project}_pf3d7_{mixed}-{pfgeneid}_{masked}_pi.txt"
+#	params:
+#		chrom = lambda wildcards, output: list(pf3d7_orthos[wildcards.pfgeneid])[0],
+#		start = lambda wildcards, output: list(pf3d7_orthos[wildcards.pfgeneid])[1],
+#		stop = lambda wildcards, output: list(pf3d7_orthos[wildcards.pfgeneid])[2],
+#		window = lambda wildcards, output: list(pf3d7_orthos[wildcards.pfgeneid])[3]
+#	resources:
+#		mem_mb = 20
+#	shell:
+#		'''if cat {input.pfpi} | while read CHROM START END N_VARIANTS PI; do echo "{wildcards.pfgeneid} $CHROM $START $END $N_VARIANTS $PI"; done | grep "{params.start} {params.stop}"; then
+#		cat {input.pfpi} | while read CHROM START END N_VARIANTS PI; do echo "{wildcards.pfgeneid} $CHROM $START $END $N_VARIANTS $PI"; done | grep "{params.start} {params.stop}" >> {output.pfpitable};
+#		else echo "{wildcards.pfgeneid} {params.chrom} {params.start} {params.stop} 0 0" >> {output.pfpitable};fi'''
 
-rule select_pocpi:
+rule unthreaded_select_pocpi:
 ###selects the particular windows that correspond to each ortholog's genomic window and appends to an output file for that ortholog
 	input:
-		popi = config["output"]+"orthologs/stats/{project}_curtisigh01_{mixed}-{pogeneid}.windowed.pi"
+		pi = expand(config["output"]+"orthologs/stats/{project}_curtisigh01_{mixed}-{pogeneid}_masked.windowed.pi", pogeneid = list(i[0] for i in curtisigh01_orthos_masked), allow_missing =True)
 	output:
-		popitable = config["output"]+"orthologs/stats/{project}_curtisigh01_{mixed}-{pogeneid}_pi.txt"
+		pitable = expand(config["output"]+"orthologs/stats/{project}_curtisigh01_{mixed}-{pogeneid}_masked_pi.txt", pogeneid = list(i[0] for i in curtisigh01_orthos_masked), allow_missing =True)
 	params:
-		chrom = lambda wildcards, output: list(curtisigh01_orthos[wildcards.pogeneid])[0],
-		start = lambda wildcards, output: list(curtisigh01_orthos[wildcards.pogeneid])[1],
-		stop = lambda wildcards, output: list(curtisigh01_orthos[wildcards.pogeneid])[2],
-		window = lambda wildcards, output: list(curtisigh01_orthos[wildcards.pogeneid])[3]
+		#inputpi = list(expand(config["output"]+"orthologs/stats/{project}_curtisigh01_{mixed}-{pogeneid}_masked.windowed.pi", pogeneid = list(i[0] for i in curtisigh01_orthos_masked), allow_missing = True)),
+		geneid = list(i[0] for i in curtisigh01_orthos_masked),
+		chrom = list(i[1] for i in curtisigh01_orthos_masked),
+		start = list(i[2] for i in curtisigh01_orthos_masked),
+		stop = list(i[3] for i in curtisigh01_orthos_masked),
+		window = list(i[4] for i in curtisigh01_orthos_masked),
+		#n_index = len(curtisigh01_orthos_masked)-1
+	resources:
+		mem_mb = 3000
 	shell:
-		'''if cat {input.popi} | while read CHROM START END N_VARIANTS PI; do echo "{wildcards.pogeneid} $CHROM $START $END $N_VARIANTS $PI"; done | grep "{params.start} {params.stop}"; then
-				cat {input.popi} | while read CHROM START END N_VARIANTS PI; do echo "{wildcards.pogeneid} $CHROM $START $END $N_VARIANTS $PI"; done | grep "{params.start} {params.stop}" >> {output.popitable};
-				else echo "{wildcards.pogeneid} {params.chrom} {params.start} {params.stop} 0 0" >> {output.popitable};fi'''
+		'''input=({input.pi});
+		geneid=({params.geneid});
+		chrom=({params.chrom});
+		start=({params.start});
+		stop=({params.stop});
+		window=({params.window});
+		out=({output.pitable});
+		for n in ${{!input[@]}}; do if cat ${{input[$n]}} | while read CHROM START END N_VARIANTS PI; do echo "${{geneid[$n]}} $CHROM $START $END $N_VARIANTS $PI"; done | grep "${{start[$n]}} ${{stop[$n]}}"; then
+				cat ${{input[$n]}} | while read CHROM START END N_VARIANTS PI; do echo "${{geneid[$n]}} $CHROM $START $END $N_VARIANTS $PI"; done | grep "${{start[$n]}} ${{stop[$n]}}" >> ${{out[$n]}};
+				else echo "${{geneid[$n]}} ${{chrom[$n]}} ${{start[$n]}} ${{stop[$n]}} 0 0" >> ${{out[$n]}};fi;done'''
 
-rule select_powpi:
+rule unthreaded_select_powpi:
 ###selects the particular windows that correspond to each ortholog's genomic window and appends to an output file for that ortholog
 	input:
-		popi = config["output"]+"orthologs/stats/{project}_wallikericr01_{mixed}-{pogeneid}.windowed.pi"
+		pi = expand(config["output"]+"orthologs/stats/{project}_wallikericr01_{mixed}-{pogeneid}_masked.windowed.pi", pogeneid = list(i[0] for i in wallikericr01_orthos_masked), allow_missing =True)
 	output:
-		popitable = config["output"]+"orthologs/stats/{project}_wallikericr01_{mixed}-{pogeneid}_pi.txt"
+		pitable = expand(config["output"]+"orthologs/stats/{project}_wallikericr01_{mixed}-{pogeneid}_masked_pi.txt", pogeneid = list(i[0] for i in wallikericr01_orthos_masked), allow_missing =True)
 	params:
-		chrom = lambda wildcards, output: list(wallikericr01_orthos[wildcards.pogeneid])[0],
-		start = lambda wildcards, output: list(wallikericr01_orthos[wildcards.pogeneid])[1],
-		stop = lambda wildcards, output: list(wallikericr01_orthos[wildcards.pogeneid])[2],
-		window = lambda wildcards, output: list(wallikericr01_orthos[wildcards.pogeneid])[3]
+		inputpi = list(expand(config["output"]+"orthologs/stats/{project}_wallikericr01_{mixed}-{pogeneid}_masked.windowed.pi", pogeneid = list(i[0] for i in wallikericr01_orthos_masked), allow_missing =True)),
+		geneid = list(i[0] for i in wallikericr01_orthos_masked),
+		chrom = list(i[1] for i in wallikericr01_orthos_masked),
+		start = list(i[2] for i in wallikericr01_orthos_masked),
+		stop = list(i[3] for i in wallikericr01_orthos_masked),
+		window = list(i[4] for i in wallikericr01_orthos_masked),
+		#n_index = len(wallikericr01_orthos_masked)-1
+	resources:
+		mem_mb = 3000
 	shell:
-		'''if cat {input.popi} | while read CHROM START END N_VARIANTS PI; do echo "{wildcards.pogeneid} $CHROM $START $END $N_VARIANTS $PI"; done | grep "{params.start} {params.stop}"; then
-		cat {input.popi} | while read CHROM START END N_VARIANTS PI; do echo "{wildcards.pogeneid} $CHROM $START $END $N_VARIANTS $PI"; done | grep "{params.start} {params.stop}" >> {output.popitable};
-		else echo "{wildcards.pogeneid} {params.chrom} {params.start} {params.stop} 0 0" >> {output.popitable};fi'''
+		'''input=({input.pi});
+		geneid=({params.geneid});
+		chrom=({params.chrom});
+		start=({params.start});
+		stop=({params.stop});
+		window=({params.window});
+		out=({output.pitable});
+		echo ${{!geneid[@]}};
+		echo ${{!chrom[@]}};
+		for n in ${{!input[@]}}; do if cat ${{input[$n]}} | while read CHROM START END N_VARIANTS PI; do echo "${{geneid[$n]}} $CHROM $START $END $N_VARIANTS $PI"; done | grep "${{start[$n]}} ${{stop[$n]}}"; then
+			cat ${{input[$n]}} | while read CHROM START END N_VARIANTS PI; do echo "${{geneid[$n]}} $CHROM $START $END $N_VARIANTS $PI"; done | grep "${{start[$n]}} ${{stop[$n]}}" >> ${{out[$n]}};
+			else echo "${{geneid[$n]}} ${{chrom[$n]}} ${{start[$n]}} ${{stop[$n]}} 0 0" >> ${{out[$n]}};fi;done'''
+
+rule unthreaded_select_pfpi:
+###selects the particular windows that correspond to each ortholog's genomic window and appends to an output file for that ortholog
+	input:
+		pi = expand(config["output"]+"orthologs/stats/{project}_pf3d7_{mixed}-{geneid}_masked.windowed.pi", geneid = list(i[0] for i in pf3d7_orthos_masked), allow_missing =True)
+	output:
+		pitable = expand(config["output"]+"orthologs/stats/{project}_pf3d7_{mixed}-{geneid}_masked_pi.txt", geneid = list(i[0] for i in pf3d7_orthos_masked), allow_missing =True)
+	params:
+		inputpi = list(expand(config["output"]+"orthologs/stats/{project}_pf3d7_{mixed}-{geneid}_masked.windowed.pi", geneid = list(i[0] for i in pf3d7_orthos_masked), allow_missing =True)),
+		geneid = list(i[0] for i in pf3d7_orthos_masked),
+		chrom = list(i[1] for i in pf3d7_orthos_masked),
+		start = list(i[2] for i in pf3d7_orthos_masked),
+		stop = list(i[3] for i in pf3d7_orthos_masked),
+		window = list(i[4] for i in pf3d7_orthos_masked),
+		#n_index = len(pf3d7_orthos_masked)-1
+	resources:
+		mem_mb = 3000
+	shell:
+		'''input=({input.pi});
+		geneid=({params.geneid});
+		chrom=({params.chrom});
+		start=({params.start});
+		stop=({params.stop});
+		window=({params.window});
+		out=({output.pitable});
+		for n in ${{!input[@]}}; do if cat ${{input[$n]}} | while read CHROM START END N_VARIANTS PI; do echo "${{geneid[$n]}} $CHROM $START $END $N_VARIANTS $PI"; done | grep "${{start[$n]}} ${{stop[$n]}}"; then
+				cat ${{input[$n]}} | while read CHROM START END N_VARIANTS PI; do echo "${{geneid[$n]}} $CHROM $START $END $N_VARIANTS $PI"; done | grep "${{start[$n]}} ${{stop[$n]}}" >> ${{out[$n]}};
+				else echo "${{geneid[$n]}} ${{chrom[$n]}} ${{start[$n]}} ${{stop[$n]}} 0 0" >> ${{out[$n]}};fi;done'''
+
+
+
+#rule select_pocpi:
+###selects the particular windows that correspond to each ortholog's genomic window and appends to an output file for that ortholog
+#	input:
+#		popi = config["output"]+"orthologs/stats/{project}_curtisigh01_{mixed}-{pogeneid}_{masked}.windowed.pi"
+#	output:
+#		popitable = config["output"]+"orthologs/stats/{project}_curtisigh01_{mixed}-{pogeneid}_{masked}_pi.txt"
+#	params:
+#		chrom = lambda wildcards, output: list(curtisigh01_orthos[wildcards.pogeneid])[0],
+#		start = lambda wildcards, output: list(curtisigh01_orthos[wildcards.pogeneid])[1],
+#		stop = lambda wildcards, output: list(curtisigh01_orthos[wildcards.pogeneid])[2],
+#		window = lambda wildcards, output: list(curtisigh01_orthos[wildcards.pogeneid])[3]
+#	resources:
+#		mem_mb = 20
+#	shell:
+#		'''if cat {input.popi} | while read CHROM START END N_VARIANTS PI; do echo "{wildcards.pogeneid} $CHROM $START $END $N_VARIANTS $PI"; done | grep "{params.start} {params.stop}"; then
+#				cat {input.popi} | while read CHROM START END N_VARIANTS PI; do echo "{wildcards.pogeneid} $CHROM $START $END $N_VARIANTS $PI"; done | grep "{params.start} {params.stop}" >> {output.popitable};
+#				else echo "{wildcards.pogeneid} {params.chrom} {params.start} {params.stop} 0 0" >> {output.popitable};fi'''
+
+#rule select_powpi:
+###selects the particular windows that correspond to each ortholog's genomic window and appends to an output file for that ortholog
+#	input:
+#		popi = config["output"]+"orthologs/stats/{project}_wallikericr01_{mixed}-{pogeneid}_{masked}.windowed.pi"
+#	output:
+#		popitable = config["output"]+"orthologs/stats/{project}_wallikericr01_{mixed}-{pogeneid}_{masked}_pi.txt"
+#	params:
+#		chrom = lambda wildcards, output: list(wallikericr01_orthos[wildcards.pogeneid])[0],
+#		start = lambda wildcards, output: list(wallikericr01_orthos[wildcards.pogeneid])[1],
+#		stop = lambda wildcards, output: list(wallikericr01_orthos[wildcards.pogeneid])[2],
+#		window = lambda wildcards, output: list(wallikericr01_orthos[wildcards.pogeneid])[3]
+#	resources:
+#		mem_mb = 20
+#	shell:
+#		'''if cat {input.popi} | while read CHROM START END N_VARIANTS PI; do echo "{wildcards.pogeneid} $CHROM $START $END $N_VARIANTS $PI"; done | grep "{params.start} {params.stop}"; then
+#		cat {input.popi} | while read CHROM START END N_VARIANTS PI; do echo "{wildcards.pogeneid} $CHROM $START $END $N_VARIANTS $PI"; done | grep "{params.start} {params.stop}" >> {output.popitable};
+#		else echo "{wildcards.pogeneid} {params.chrom} {params.start} {params.stop} 0 0" >> {output.popitable};fi'''
 											
 rule compile_pf_pi:
 ###compiles all ortholog-specific pi files into a single text file containing all orthologs for a given species
 	input:
-		expand(config["output"]+"orthologs/stats/{project}_pf3d7_{mixed}-{pfgeneid}_pi.txt", pfgeneid=pf3d7_orthos.keys(), allow_missing=True)		
+		expand(config["output"]+"orthologs/stats/{project}_pf3d7_{mixed}-{pfgeneid}_{masked}_pi.txt", pfgeneid=list(i[0] for i in pf3d7_orthos_masked), allow_missing=True)		
 	output:
-		pfpi = config["output"]+"orthologs/overall/{project}_pf3d7_{mixed}_ortholog_pi.txt"
+		pfpi = config["output"]+"orthologs/overall/{project}_pf3d7_{mixed}_ortholog_{masked}_pi.txt"
 	shell:
 		"""for i in {input}; do cat $i >> {output.pfpi}; done"""
 
 rule compile_poc_pi:
 	input:
-		expand(config["output"]+"orthologs/stats/{project}_curtisigh01_{mixed}-{pocgeneid}_pi.txt", pocgeneid=curtisigh01_orthos.keys(), allow_missing=True)
+		expand(config["output"]+"orthologs/stats/{project}_curtisigh01_{mixed}-{pocgeneid}_{masked}_pi.txt", pocgeneid=list(i[0] for i in curtisigh01_orthos_masked), allow_missing=True)
 	output:
-		pocpi = config["output"]+"orthologs/overall/{project}_curtisigh01_{mixed}_ortholog_pi.txt"
+		pocpi = config["output"]+"orthologs/overall/{project}_curtisigh01_{mixed}_ortholog_{masked}_pi.txt"
 	shell:
 		"""for i in {input}; do cat $i >> {output.pocpi}; done"""
 
 rule compile_pow_pi:
 	input:
-		expand(config["output"]+"orthologs/stats/{project}_wallikericr01_{mixed}-{powgeneid}_pi.txt", powgeneid=wallikericr01_orthos.keys(), allow_missing=True)
+		expand(config["output"]+"orthologs/stats/{project}_wallikericr01_{mixed}-{powgeneid}_{masked}_pi.txt", powgeneid=list(i[0] for i in wallikericr01_orthos_masked), allow_missing=True)
 	output:
-		powpi = config["output"]+"orthologs/overall/{project}_wallikericr01_{mixed}_ortholog_pi.txt"
+		powpi = config["output"]+"orthologs/overall/{project}_wallikericr01_{mixed}_ortholog_{masked}_pi.txt"
 	shell:
 		"""for i in {input}; do cat $i >> {output.powpi}; done"""
-
-	
-###
-#### add mixed to filenames and add wallikeri
-###
 
 
 
@@ -704,7 +933,7 @@ rule remove_missing:
 	shell: 
 		"vcftools --gzvcf {input} --out {params.outfile} --max-missing 1 --recode --recode-INFO-all"
 
-rule gzip_nsl:
+rule gzip_nonmissing:
 ###rezips monoclonal sample set vcf file
 	input:
 		config["output"]+"sample_sets/{project}_{species}_{mixed}_monoclonal_nomissing.recode.vcf"
@@ -736,9 +965,7 @@ rule subset_chr:
 		"envs/bcftools.yaml"
 	shell:
 		"bcftools view -r {wildcards.chromosome} {input.vcf} | gzip > {output}"
-		
-		
-		
+				
 rule calc_n_sl:
 	input:
 		vcf = config["output"]+"chr_sets/{project}_{species}_{mixed}_monoclonal_nomissing_{chromosome}.vcf.gz"
@@ -773,6 +1000,17 @@ rule compile_pow_n_sl:
 		"""for i in {input.pow_nsl};
 		do export CHROM=$(echo "$i" | cut -d "_" -f 5 | cut -d "." -f 1);
 		cat $i | while read ID POS AF L1 L2 NSL; do echo "$CHROM $POS $NSL" >> {output.pow_total}; done; done;"""
+
+rule compile_pf_n_sl:
+###compiles the chromosome, position, and n_Sl calculated at all variants into a single text file 
+	input:
+		pf_nsl = expand(config["output"]+"selection/{project}_pf3d7_{mixed}_nsl_{chromosome}.nsl.out", chromosome = pf3d7_chr.keys(), allow_missing=True),
+	output:
+		pf_total = config["output"]+"selection/{project}_pf3d7_{mixed}_nsl_total.txt"
+	shell:
+		"""for i in {input.pf_nsl};
+		do export CHROM=$(echo "$i" | cut -d "_" -f 5-6);
+		cat $i | while read ID POS AF L1 L2 NSL; do echo "$CHROM $POS $NSL" >> {output.pf_total}; done; done;"""
 
 
 

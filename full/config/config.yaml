@@ -40,6 +40,10 @@ wallikericr01_exons: "wallikericr01_exons.bed"
 
 wallikericr01_genes: "wallikericr01_genes.bed"
 
+pf3d7_genes: "pf3d7_genes.bed"
+
+pf3d7_exons: "pf3d7_exons.bed"
+
 tajima_window: "50"
 
 general_java_opts:                        # ram and threads for less memory intensive gatk tools
@@ -91,4 +95,4 @@ realmccoilr:
 plink:
   window: "50" #in number of variants
   step: "5" #number of variants
-  r2: "0.5"
+  r2: "0.3"
