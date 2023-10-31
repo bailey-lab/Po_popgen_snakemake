@@ -20,29 +20,29 @@ cov_filter: "5" #depth of coverage an ovale window must have in order for orthol
 
 all_orthos: "all_pf-poc-pow_orthologs.tsv"
 
-pf_orthos_masked: "pf3d7_pf-poc-pow_orthologs_masked.tsv"
+pf_orthos_masked: "ortholog_beds/pf3d7_pf-poc-pow_orthologs_masked.tsv"
 
-poc_orthos_masked: "curtisigh01_pf-poc-pow_orthologs_masked.tsv"
+poc_orthos_masked: "ortholog_beds/curtisigh01_pf-poc-pow_orthologs_masked.tsv"
 
-pow_orthos_masked: "wallikericr01_pf-poc-pow_orthologs_masked.tsv"
+pow_orthos_masked: "ortholog_beds/wallikericr01_pf-poc-pow_orthologs_masked.tsv"
 
-pf_orthos_unfiltered: "pf3d7_pf-poc-pow_orthologs_unfiltered.tsv"
+pf_orthos_unfiltered: "ortholog_beds/pf3d7_pf-poc-pow_orthologs_unfiltered.tsv"
 
-poc_orthos_unfiltered: "curtisigh01_pf-poc-pow_orthologs_unfiltered.tsv"
+poc_orthos_unfiltered: "ortholog_beds/curtisigh01_pf-poc-pow_orthologs_unfiltered.tsv"
 
-pow_orthos_unfiltered: "wallikericr01_pf-poc-pow_orthologs_unfiltered.tsv"
+pow_orthos_unfiltered: "ortholog_beds/wallikericr01_pf-poc-pow_orthologs_unfiltered.tsv"
 
-curtisigh01_genes: "curtisigh01_genes.bed"
+curtisigh01_genes: "beds/curtisigh01_genes_sorted.bed"
 
-curtisigh01_exons: "curtisigh01_exons.bed"
+curtisigh01_exons: "beds/curtisigh01_exons_sorted.bed"
 
-wallikericr01_exons: "wallikericr01_exons.bed"
+wallikericr01_exons: "beds/wallikericr01_exons_sorted.bed"
 
-wallikericr01_genes: "wallikericr01_genes.bed"
+wallikericr01_genes: "beds/wallikericr01_genes_sorted.bed"
 
-pf3d7_genes: "pf3d7_genes.bed"
+pf3d7_genes: "beds/pf3d7_genes_sorted.bed"
 
-pf3d7_exons: "pf3d7_exons.bed"
+pf3d7_exons: "beds/pf3d7_exons_sorted.bed"
 
 tajima_window: "50"
 

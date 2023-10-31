@@ -112,15 +112,15 @@ for line in masked_orthos:
 	pow_masked_orthos.append(line.split("\t")[9]+"\t"+line.split("\t")[10]+"\t"+line.split("\t")[11]+"\t"+line.split("\t")[12]+"\t"+" ")
 
 
-pfmo = open(config["input_beds"]+config["pf_orthos_masked"], "w")
+pfmo = open(config["output"]+config["pf_orthos_masked"], "w")
 for j in pf_masked_orthos:
 	pfmo.writelines(j+"\n")
 
-pocmo = open(config["input_beds"]+config["poc_orthos_masked"], "w")
+pocmo = open(config["output"]+config["poc_orthos_masked"], "w")
 for k in poc_masked_orthos:
 	pocmo.writelines(k+"\n")
 
-powmo = open(config["input_beds"]+config["pow_orthos_masked"], "w")
+powmo = open(config["output"]+config["pow_orthos_masked"], "w")
 for l in pow_masked_orthos:
 	powmo.writelines(l+"\n")
 
@@ -136,14 +136,14 @@ for line in unfiltered_orthos:
 	poc_unfiltered_orthos.append(line.split("\t")[5]+"\t"+line.split("\t")[6]+"\t"+line.split("\t")[7]+"\t"+line.split("\t")[8]+"\t"+" ")
 	pow_unfiltered_orthos.append(line.split("\t")[9]+"\t"+line.split("\t")[10]+"\t"+line.split("\t")[11]+"\t"+line.split("\t")[12]+"\t"+" ")
 
-pfuo = open(config["input_beds"]+config["pf_orthos_unfiltered"], "w")
+pfuo = open(config["output"]+config["pf_orthos_unfiltered"], "w")
 for j in pf_unfiltered_orthos:
 	pfuo.writelines(j+"\n")
 
-pocuo = open(config["input_beds"]+config["poc_orthos_unfiltered"], "w")
+pocuo = open(config["output"]+config["poc_orthos_unfiltered"], "w")
 for k in poc_unfiltered_orthos:
 	pocuo.writelines(k+"\n")
 
-powuo = open(config["input_beds"]+config["pow_orthos_unfiltered"], "w")
+powuo = open(config["output"]+config["pow_orthos_unfiltered"], "w")
 for l in pow_unfiltered_orthos:
 	powuo.writelines(l+"\n")

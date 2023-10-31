@@ -6,8 +6,8 @@ with open("config/config.yaml") as file:
 
 #read in input files
 species = snakemake.wildcards.species
-genes = open(config["input_beds"]+ config[species+"_genes"]).readlines()
-exons = open(config["input_beds"]+ config[species+"_exons"]).readlines()
+genes = open(config["output"]+ config[species+"_genes"]).readlines()
+exons = open(config["output"]+ config[species+"_exons"]).readlines()
 project = snakemake.wildcards.project
 mixed = snakemake.wildcards.mixed
 stats = open(config["output"]+ "selection/"+project+"_"+species+"_"+mixed+".Tajima.D").readlines()
@@ -34,21 +34,22 @@ for i in range(1,(len(stats)-1)):
 		#iterate through all genes in the gene bed file
 		for j in range(0,(len(genes)-1)):
 			#if a given gene matches the chromosome of the tajima calculation, we'll check the interval
-			if chrom == genes[j].split("\t")[1]:
+			if chrom == genes[j].split("\t")[0]:
+				print(genes[j].split("\t")[0])
 				#if the tajima window starts after this gene window, we'll continue considering
-				if int(start) >= int(genes[j].split("\t")[2]):
+				if int(start) >= int(genes[j].split("\t")[1]):
 					#if the end of the tajima window (start + window length) is before the end of the gene, we'll use this tajima window
-					if (int(start)+int(window)) <= int(genes[j].split("\t")[3].rstrip("\n")):
+					if (int(start)+int(window)) <= int(genes[j].split("\t")[2].rstrip("\n")):
 						#only if the tajima window matches chromosome and falls within the start and stop of the gene will we keep it
 						geneflag = 1
 		#iterate through all genes in the gene bed file
 		for k in range(0,(len(exons)-1)):
 			#if a given exon matches the chromosome of the tajima calculation, we'll check the interval
-			if chrom == exons[k].split("\t")[1]:
+			if chrom == exons[k].split("\t")[0]:
 				#if the tajima window starts after this exon window, we'll continue considering
-				if int(start) >= int(exons[k].split("\t")[2]):
+				if int(start) >= int(exons[k].split("\t")[1]):
 					#if the end of the tajima window (start + window length) is before the end of the exon, we'll use this tajima window
-					if (int(start)+int(window)) <= int(exons[k].split("\t")[3].rstrip("\n")):
+					if (int(start)+int(window)) <= int(exons[k].split("\t")[2].rstrip("\n")):
 						exonflag = 1
 	#tajima windows will be written to gene list if the window falls within one gene window in the genome
 	if geneflag == 1:

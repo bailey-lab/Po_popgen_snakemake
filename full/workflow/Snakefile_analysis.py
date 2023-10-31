@@ -14,14 +14,14 @@
 #	add bcftools normalize step before limiting to biallelic snps? Would left-align variants but otherwise might not be important if we then just exclude indels
 #  should tajima's D calculation include missing sites? currently not using sites with any missingness
 #  check hard filtering cutoffs
-#  limit pi steps to smaller number of slurm jobs, don't parallelize so hard
 #  Examine whether pi is different when using the unfiltered set of orthologs instead of masked
 #  Add falciparum coverage filtering step
 #  Have nsl and tajima's D steps read in vcf without MAF filter to see if this changes, rare alleles may have selectio signatures
 #  collapse gzipping into a single general rule working with ".recode.vcf" or by combining into previous steps, using temporary() for the intermediate recoded unzipped vcfs
 #  generate coditional script to quality filter tag for ovale (and gzip), and just copy the falciparum files
 #  make chromosome vcf subsets temporary
-#  ADJUST MAF cutoff to ensure robustenss to the sequencing and PCR error issues
+#  Check that input filepaths only contain input files; move intermediate files to other directories
+
 
 #needed input files:
 #	vcf of variants called for sample(s) after aligning to a specific reference genome, formatted as "input/vcfs/{project}_{species}.vcf.gz"
@@ -38,6 +38,10 @@
 
 configfile: "config/config.yaml"
 
+###create list of sample names
+samplenames = []
+for i in open(config["input_lists"]+"sample_names.txt").readlines():
+        samplenames.append(i.rstrip("\n"))
 
 ###for ortholog filtering later, we must create sets of pf and poc orthologs. Switched to list format
 def parse_bed_file(bed_file):
@@ -62,9 +66,9 @@ def parse_bed_file(bed_file):
 #		gene_dict[name]= [chrom, start, stop, window]
 #	return gene_dict
 
-pf3d7_orthos_masked = parse_bed_file(config["input_beds"]+ config["pf_orthos_masked"])
-curtisigh01_orthos_masked = parse_bed_file(config["input_beds"]+config["poc_orthos_masked"])
-wallikericr01_orthos_masked = parse_bed_file(config["input_beds"]+config["pow_orthos_masked"])
+pf3d7_orthos_masked = parse_bed_file(config["output"]+ config["pf_orthos_masked"])
+curtisigh01_orthos_masked = parse_bed_file(config["output"]+config["poc_orthos_masked"])
+wallikericr01_orthos_masked = parse_bed_file(config["output"]+config["pow_orthos_masked"])
 
 ###for nsl calculation, we also need a list of chromosome names for each species
 ###nSL is calculated for haplotypes on each chromosome, so we must subset vcfs by chromosome. This function derives a list of chromosome names from the chr.bed files
@@ -106,13 +110,17 @@ rule all:
 		#files = expand(config["output"]+"analysis_vcfs/ov1_{species}.vcf.gz", species = ["wallikericr01", "curtisigh01", "pf3d7"]),
 		#files = config["output"]+"analysis_vcfs/ov1_pf3d7.vcf.gz",
 		###Overal genome-wide statistics
-		overall_pi = expand(config["output"]+"stats/overall_snp_density/ov1_{species}_speciescall.snpden", species =  ["wallikericr01", "curtisigh01"]),
+		overall_snpden = expand(config["output"]+"statistics/overall_snp_density/ov1_{species}_speciescall.snpden", species =  ["wallikericr01", "curtisigh01"]),
+		intron_beds = expand(config["output"]+"beds/{species}_introns_sorted.bed", species =  ["wallikericr01", "curtisigh01"]),
+		region_snp_density = expand(config["output"]+"statistics/region_snp_density/ov1_{species}_speciescall_snp_density.txt", species =  ["wallikericr01", "curtisigh01"]),
 		###COI Calculation
 		coi = expand(config["output"]+"statistics/coi/{species}_{mixed}/ov1_{species}_{mixed}_coi.txt", species = ["wallikericr01", "curtisigh01"], mixed = ["speciescall"]),
 		coi_pf = config["output"]+"statistics/coi/pf3d7_only/ov1_pf3d7_only_coi.txt",
 		###Generate vcfs of monoclonal samples only
 		mono_files = expand(config["output"]+"sample_sets/ov1_{species}_{mixed}_monoclonal.vcf.gz", species = ["wallikericr01", "curtisigh01"], mixed = ["speciescall"]),
 		mono_pf_file = config["output"]+"sample_sets/ov1_pf3d7_only_monoclonal.vcf.gz",
+		###generate consensus sequences per sample
+		consensus = expand(config["output"]+"consensus_seq/ov1_{species}_speciescall-{sample}.fasta", species = ["wallikericr01", "curtisigh01"], sample = samplenames),
 		###Generate plink files for PCA
 		po_plink = expand(config["output"]+"plink/pca_ldpruned-"+config["plink"]["window"]+"-"+config["plink"]["step"]+"-"+config["plink"]["r2"]+"/ov1_{species}_speciescall/ov1_{species}_speciescall.eigenvec", species = ["wallikericr01", "curtisigh01"]),
 		pf_plink = config["output"]+"plink/pca_ldpruned-"+config["plink"]["window"]+"-"+config["plink"]["step"]+"-"+config["plink"]["r2"]+"/ov1_pf3d7_only/ov1_pf3d7_only.eigenvec",
@@ -120,29 +128,18 @@ rule all:
 		po_clusters = expand(config["output"]+"plink/ldpruned-"+config["plink"]["window"]+"-"+config["plink"]["step"]+"-"+config["plink"]["r2"]+"/ov1_{species}_speciescall/run1/ov1_{species}_speciescall.clusters{cluster}.log", species = ["wallikericr01", "curtisigh01"], cluster = ["1","2","3","4","5","6","7","8","9","10","11","12","13","14","15"]),
 		pf_clusters = expand(config["output"]+"plink/ldpruned-"+config["plink"]["window"]+"-"+config["plink"]["step"]+"-"+config["plink"]["r2"]+"/ov1_pf3d7_only/run1/ov1_pf3d7_only.clusters{cluster}.log", cluster = ["1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18"]),
 		###ortholog subsetting, processing, and management
-		#poc_unthreaded_pi = expand(config["output"]+"orthologs/stats/ov1_curtisigh01_speciescall-{pogeneid}_masked.windowed.pi", pogeneid = list(i[0] for i in curtisigh01_orthos_masked)),
-		#pow_unthreaded_pi = expand(config["output"]+"orthologs/stats/ov1_wallikericr01_speciescall-{pogeneid}_masked.windowed.pi", pogeneid = list(i[0] for i in wallikericr01_orthos_masked)),
-		#pf_unthreaded_pi = expand(config["output"]+"orthologs/stats/ov1_pf3d7_only-{pfgeneid}_masked.windowed.pi", pfgeneid = list(i[0] for i in pf3d7_orthos_masked)),
-		#poc_selected = expand(config["output"]+"orthologs/stats/ov1_curtisigh01_speciescall-{pogeneid}_masked_pi.txt", pogeneid = list(i[0] for i in curtisigh01_orthos_masked)), 
-		#popi = expand(config["output"]+"orthologs/stats/ov1_curtisigh01_{geneid}.windowed.pi", geneid=curtisigh01_orthos.keys()),
-		#pfpi = expand(config["output"]+"orthologs/stats/ov1_pf3d7_{geneid}.windowed.pi", geneid=pf3d7_orthos.keys()),
-		#pfpi = expand(config["output"]+"orthologs/stats/ov1_pf3d7_{geneid}_pi.txt", geneid=pf3d7_orthos.keys()),
-		#popi = expand(config["output"]+"orthologs/stats/ov1_curtisigh01_{geneid}_pi.txt", geneid=curtisigh01_orthos.keys()),
-
-		### DO NOT RUN PI calculations until I have limited the number of slurm jobs that will be submitted
-
-		pfpi = expand(config["output"]+"orthologs/overall/ov1_pf3d7_only_ortholog_{masked}_pi.txt", masked = ["masked"]),
-		pocpi = expand(config["output"]+"orthologs/overall/ov1_curtisigh01_speciescall_ortholog_{masked}_pi.txt", masked = ["masked"]),
-		powpi = expand(config["output"]+"orthologs/overall/ov1_wallikericr01_speciescall_ortholog_{masked}_pi.txt", masked = ["masked"]),
+		#pfpi = expand(config["output"]+"orthologs/overall/ov1_pf3d7_only_ortholog_{masked}_pi.txt", masked = ["masked"]),
+		#pocpi = expand(config["output"]+"orthologs/overall/ov1_curtisigh01_speciescall_ortholog_{masked}_pi.txt", masked = ["masked"]),
+		#powpi = expand(config["output"]+"orthologs/overall/ov1_wallikericr01_speciescall_ortholog_{masked}_pi.txt", masked = ["masked"]),
 
 		###Selection signals###
 		#nomissvcf = expand(config["output"]+"sample_sets/ov1_{species}_monoclonal_nomissing.vcf.gz", species = ["wallikericr01", "curtisigh01", "pf3d7"]),
-		pfnsl = expand(config["output"]+"selection/ov1_pf3d7_only_nsl_{chromosome}.nsl.out", chromosome = pf3d7_chr.keys()),
-		pocnsl = expand(config["output"]+"selection/ov1_curtisigh01_speciescall_nsl_{chromosome}.nsl.out", chromosome = curtisigh01_chr.keys()),
-		pownsl = expand(config["output"]+"selection/ov1_wallikericr01_speciescall_nsl_{chromosome}.nsl.out", chromosome = wallikericr01_chr.keys()),
+		#pfnsl = expand(config["output"]+"selection/ov1_pf3d7_only_nsl_{chromosome}.nsl.out", chromosome = pf3d7_chr.keys()),
+		#pocnsl = expand(config["output"]+"selection/ov1_curtisigh01_speciescall_nsl_{chromosome}.nsl.out", chromosome = curtisigh01_chr.keys()),
+		#pownsl = expand(config["output"]+"selection/ov1_wallikericr01_speciescall_nsl_{chromosome}.nsl.out", chromosome = wallikericr01_chr.keys()),
 		#nsl_compile_poc = config["output"]+"selection/ov1_curtisigh01_speciescall_nsl_total.txt",
-		nsl_compile = expand(config["output"]+"selection/ov1_{species}_speciescall_nsl_total.txt", species = ["wallikericr01", "curtisigh01"]),
-		nsl_pf_compile = config["output"]+"selection/ov1_pf3d7_only_nsl_total.txt",
+		#nsl_compile = expand(config["output"]+"selection/ov1_{species}_speciescall_nsl_total.txt", species = ["wallikericr01", "curtisigh01"]),
+		#nsl_pf_compile = config["output"]+"selection/ov1_pf3d7_only_nsl_total.txt",
 		### Tajima's D calculations
 		tajimad = expand(config["output"]+"selection/ov1_{species}_speciescall.Tajima.D", species = ["wallikericr01", "curtisigh01"]),
 		tajima_compiled = expand(config["output"]+"selection/ov1_{species}_speciescall_tajimad_{elements}.txt", species = ["wallikericr01", "curtisigh01"], elements = ["genes","exons"]),
@@ -380,7 +377,7 @@ rule final_table:
 	input:
 		config["output"]+"analysis_vcfs/{project}_{species}_{mixed}.vcf.gz"
 	output:
-		config["output"]+"analysis_tabless/{project}_{species}_{mixed}.table"
+		config["output"]+"analysis_tables/{project}_{species}_{mixed}.table"
 	conda:
 		"envs/gatk.yaml"
 	shell:
@@ -418,7 +415,7 @@ rule final_set_allmaf:
 #moves annotated processed vcfs to a new directory for further analysis
 #vcfs in the analysis_vcfs directory have been limited to the core genome (in ovale, this means chromosomal contigs with a specific list 
 # of hypervariable genes manually masked based on Rutledge 2017; limited to biallelic snps; and quality filtered by hard thresholds (in ovale) or the 
-# default VQSLOD filter applied in the Pf6k dataset (for falciparum), minor allele frequency of 5%, and presence in >80% of samples 
+# default VQSLOD filter applied in the Pf6k dataset (for falciparum), and presence in >80% of samples 
 	input:
 		config["output"]+"filtered_vcfs/{project}_{species}_{mixed}_masked_biallelic_qmissfiltered.vcf.gz"
 	output:
@@ -438,8 +435,23 @@ rule index_final_vcfs_allmaf:
 	shell:
 		"""bcftools index -t {input.vcf}"""
 
+rule final_table_allmaf:
+	input:
+		vcf = config["output"]+"allmaf_analysis_vcfs/{project}_{species}_{mixed}.vcf.gz",
+		index = config["output"]+"allmaf_analysis_vcfs/{project}_{species}_{mixed}.vcf.gz.tbi"
+	output:
+		config["output"]+"allmaf_region_tables/{project}_{species}_{mixed}_genome.table"
+	conda:
+		"envs/gatk.yaml"
+	shell:
+		"gatk VariantsToTable -V {input.vcf} -F CHROM -F POS -O {output}"
 
-rule overall_snp_density:
+
+
+### Determine SNP density across the genome and within specific functional portions of the genome
+
+
+rule overall_snp_density_vcftools:
 #calculates genome-wide SNP density per 1Kb
 	input:
 		config["output"]+"allmaf_analysis_vcfs/{project}_{species}_{mixed}.vcf.gz"
@@ -455,17 +467,157 @@ rule overall_snp_density:
 ###To calculate SNP Density at various regions of the genome, we must import bed files of genes, exons, CDS from the gff file
 ### a bed file of chromosome sizes can be produced from the chromosome bed file using : cat curtisigh01_chr.bed | while read CHROM START STOP; do echo -e "$CHROM\t$STOP" >> curtisigh01_chrsize.bed; done
 
+rule chromosome_size_bed:
+	input:
+		config["input_beds"]+ "{species}.bed"
+	output:
+		config["output"]+ "beds/{species}_chrsize.txt"
+	shell:
+		'''cat {input} | while read CHROM START STOP; do echo -e "$CHROM\t$STOP" | sed 's/\r$//' >> {output}; done'''
 
+
+rule sort_gffs:
+	input:
+		config["input"]+"gffs/{species}.gff"
+	output:
+		config["output"]+"gffs/{species}_sorted.gff"
+	shell:
+		'''cat {input} | awk '$1 ~ /^#/ {{print $0;next}} {{print $0 | "sort -k1,1 -k4,4n -k5,5n"}}' > {output}'''
+
+rule intergenic_bed:
+	input:
+		gff_sorted = config["output"]+"gffs/{species}_sorted.gff",
+		chrsize_bed = config["output"]+ "beds/{species}_chrsize.txt"
+	output:
+		config["output"]+"beds/{species}_intergenic_sorted.bed"
+	conda:
+		"envs/bedtools.yaml"
+	shell:
+		'''bedtools complement -i {input.gff_sorted} -g {input.chrsize_bed} > {output}'''
+
+rule exon_bed:
+	input:
+		config["output"]+"gffs/{species}_sorted.gff"
+	output:
+		config["output"]+ "beds/{species}_exons_sorted.bed"
+	shell:
+		'''awk 'OFS="\t", $1 !~ /^#/ {{if ($3 == "exon") print $1, $4-1, $5}}' {input} > {output}'''
+
+rule gene_bed:
+	input:
+		config["output"]+"gffs/{species}_sorted.gff"
+	output:
+		config["output"]+ "beds/{species}_genes_sorted.bed"
+	shell:
+		'''awk 'OFS="\t", $1 !~ /^#/ {{if ($3 ~ "gene") print $1, $4-1, $5}}' {input} > {output}'''
+
+rule cds_bed:
+	input:
+		config["output"]+"gffs/{species}_sorted.gff"
+	output:
+		config["output"]+ "beds/{species}_cds_sorted.bed"
+	shell:
+		'''awk 'OFS="\t", $1 !~ /^#/ {{if ($3 == "CDS") print $1, $4-1, $5}}' {input} > {output}'''
+
+rule intron_bed:
+	input:
+		exons = config["output"]+ "beds/{species}_exons_sorted.bed",
+		intergenic = config["output"]+"beds/{species}_intergenic_sorted.bed",
+		chrsize_bed = config["output"]+ "beds/{species}_chrsize.txt"
+	output:
+		config["output"]+"beds/{species}_introns_sorted.bed"
+	shell:
+		'''bedtools complement -i <(cat {input.exons} {input.intergenic} | sort -k1,1 -k2,2n) -g {input.chrsize_bed} > {output}'''
+
+###for introns, exons, cds, genes, and intergenic region beds, need to remove extrachromosomal contigs and have sorted
+rule remove_extrachromosomal:
+	input:
+		region_bed = config["output"]+ "beds/{species}_{region}_sorted.bed",
+		chr_bed = config["input_beds"]+"{species}_chr.bed",
+	output:
+		config["output"]+ "beds/{species}_{region}_sorted_chrselected.bed"
+	conda:
+		"envs/bedtools.yaml"
+	shell:
+		"bedtools multiinter -i {input.region_bed} {input.chr_bed} | awk '$4==2' > {output}"
+
+rule genemask_region_beds:
+#for specific  genome region bed files, removes the intervals masked by the hypervariable gene mask
+	input:
+		region_bed = config["output"]+ "beds/{species}_{region}_sorted_chrselected.bed",
+		genemask_bed = config["input_beds"]+"{species}_genemask.bed",
+	output:
+		config["output"]+ "beds/{species}_{region}_sorted_chrselected_genemasked.bed"
+	conda:
+		"envs/bedtools.yaml"
+	shell:
+		"bedtools subtract -a {input.region_bed} -b {input.genemask_bed} > {output}"
+
+rule genemask_chr_bed:
+	input:
+		region_bed = config["input_beds"]+ "{species}_chr.bed",
+		genemask_bed = config["input_beds"]+"{species}_genemask.bed",
+	output:
+		config["output"]+ "beds/{species}_chr_genemasked.bed"
+	conda:
+		"envs/bedtools.yaml"
+	shell:
+		"bedtools subtract -a {input.region_bed} -b {input.genemask_bed} > {output}"
+
+rule region_snp_table:
+	input:
+		vcf = config["output"]+"allmaf_analysis_vcfs/{project}_{species}_{mixed}.vcf.gz",
+		index = config["output"]+"allmaf_analysis_vcfs/{project}_{species}_{mixed}.vcf.gz.tbi",
+		bed = config["output"]+ "beds/{species}_{region}_sorted_chrselected_genemasked.bed"
+	output:
+		config["output"]+"allmaf_region_tables/{project}_{species}_{mixed}_{region}.table"
+	conda:
+		"envs/gatk.yaml"
+	shell:
+		"gatk VariantsToTable -V {input.vcf} -L {input.bed} -F CHROM -F POS -O {output}"
+
+rule merge_overlap:
+#merge bed file windows so that overlapping genome elements do not falsely inflate region length for SNP density calculations (ie two overlapping exons from different genes shouldn't be counted as separate regions of the genome)
+	input:
+		config["output"]+ "beds/{species}_{region}_sorted_chrselected_genemasked.bed"
+	output:
+		config["output"]+ "beds/{species}_{region}_sorted_chrselected_genemasked_merged.bed"
+	conda:
+		"envs/bedtools.yaml"
+	shell:
+		"bedtools merge -i {input} > {output}"				
+
+###for each type of region, make a script that counts SNPs within the SNPs within the regions and divides by the total legnth of intervals in each bed file
+# first, do a gatk varianttotable step using -L with the corresponding bed files
+# then, take in the table and the bed file and do a simple calculation of numbers of rows in table divided by total length of intervals in bed file
+rule compile_snp_density:
+	input:
+		genome_bed = config["output"]+ "beds/{species}_chr_genemasked.bed",
+		intergenic_bed = config["output"]+"beds/{species}_intergenic_sorted_chrselected_genemasked_merged.bed",
+		gene_bed = config["output"]+ "beds/{species}_genes_sorted_chrselected_genemasked_merged.bed",
+		intron_bed =  config["output"]+"beds/{species}_introns_sorted_chrselected_genemasked_merged.bed",
+		exon_bed = config["output"]+ "beds/{species}_exons_sorted_chrselected_genemasked_merged.bed",
+		cds_bed = config["output"]+ "beds/{species}_cds_sorted_chrselected_genemasked_merged.bed",
+		genome_table = config["output"]+"allmaf_region_tables/{project}_{species}_{mixed}_genome.table",
+		intergenic_table = config["output"]+"allmaf_region_tables/{project}_{species}_{mixed}_intergenic.table",
+		gene_table = config["output"]+"allmaf_region_tables/{project}_{species}_{mixed}_genes.table",
+		intron_table = config["output"]+"allmaf_region_tables/{project}_{species}_{mixed}_introns.table",
+		exon_table = config["output"]+"allmaf_region_tables/{project}_{species}_{mixed}_exons.table",
+		cds_table = config["output"]+"allmaf_region_tables/{project}_{species}_{mixed}_cds.table",
+	output:
+		config["output"]+"statistics/region_snp_density/{project}_{species}_{mixed}_snp_density.txt"
+	script:
+		"scripts/region_snp_density_compiler.py"
 
 
 
 ### Section ___: generate outfiles for calculation of Complexity of Infection using THEREALMcCOIL
 
 
-
+#### Trying with and without MAF filter
 rule submit_mccoilr_script:
 	input:
-		config["output"]+"analysis_vcfs/{project}_{species}_{mixed}.vcf.gz"
+		config["output"]+"allmaf_analysis_vcfs/{project}_{species}_{mixed}.vcf.gz"
 	output:
 		config["output"]+"statistics/coi/{species}_{mixed}/{project}_{species}_{mixed}_coi.txt"
 	conda:
@@ -499,6 +651,18 @@ rule subset_monoclonal:
 	shell:
 		"gatk SelectVariants --exclude-sample-name {input.samplelist} -R {input.reference} -V {input.vcf} -O {output}"
 
+
+rule index_monoclonal_vcfs:
+	input:
+		vcf = config["output"]+"sample_sets/{project}_{species}_{mixed}_monoclonal.vcf.gz",
+		#table = config["output"]+"allmaf_analysis_tables/{project}_{species}_{mixed}.table"
+	output:
+		config["output"]+"sample_sets/{project}_{species}_{mixed}_monoclonal.vcf.gz.tbi"
+	conda:
+		"envs/masker.yaml"
+	shell:
+		"""bcftools index -t {input.vcf}"""
+
 rule subset_monoclonal_allmaf:
 ###excludes polyclonal samples, as determined using RealMcCOIl
 	input:
@@ -513,6 +677,17 @@ rule subset_monoclonal_allmaf:
 	shell:
 		"gatk SelectVariants --exclude-sample-name {input.samplelist} -R {input.reference} -V {input.vcf} -O {output}"
 
+rule index_monoclonal_vcfs_allmaf:
+	input:
+		vcf = config["output"]+"sample_sets/{project}_{species}_{mixed}_monoclonal_allmaf.vcf.gz",
+		#table = config["output"]+"allmaf_analysis_tables/{project}_{species}_{mixed}.table"
+	output:
+		config["output"]+"sample_sets/{project}_{species}_{mixed}_monoclonal_allmaf.vcf.gz.tbi"
+	conda:
+		"envs/masker.yaml"
+	shell:
+		"""bcftools index -t {input.vcf}"""
+
 ###Transfers a copy of the config file and Snakefile to the output for future reference of those results
 rule copy_snakefileandconfig:
 	input:
@@ -524,6 +699,27 @@ rule copy_snakefileandconfig:
 	shell:
 		"""cp {input.config} {output.config}
 		cp {input.snakefile} {output.snakefile}"""
+
+
+rule vcf_2_fasta:
+	input:
+		vcf = config["output"]+"sample_sets/{project}_{species}_{mixed}_monoclonal_allmaf.vcf.gz",
+		index = config["output"]+"sample_sets/{project}_{species}_{mixed}_monoclonal_allmaf.vcf.gz.tbi",
+		ref = config["input_genomes"]+"{species}.fasta"
+	output: 
+		config["output"]+"consensus_seq/{project}_{species}_{mixed}-{sample}.fasta"
+	conda:
+		"envs/bcftools.yaml"
+	shell:
+		#-I argument causes consensus sequences to use IUPAC codes for ambiguous base calls
+		"bcftools consensus -I -f {input.ref} -s {wildcards.sample} -o {output} {input.vcf}"
+
+
+
+
+
+
+
 
 
 ### Perform Principal Components Analysis using plink
@@ -914,20 +1110,20 @@ rule compile_pow_pi:
 rule gunzip_vcfs:
 ###unzips monoclonal vcf files for use with selscan
 	input:
-		vcf = config["output"]+"sample_sets/{project}_{species}_{mixed}_monoclonal.vcf.gz"
+		vcf = config["output"]+"sample_sets/{project}_{species}_{mixed}_monoclonal_allmaf.vcf.gz"
 	output:
-		config["output"]+"sample_sets/{project}_{species}_{mixed}_monoclonal.vcf"
+		config["output"]+"sample_sets/{project}_{species}_{mixed}_monoclonal_allmaf.vcf"
 	shell:
 		"gunzip -c {input.vcf} > {output}"
 
 rule remove_missing:
 	###selscan requires no missing genotypes in order to impute selection, so we will filter out all sites that are missing any genotypes
 	input: 
-		config["output"]+"sample_sets/{project}_{species}_{mixed}_monoclonal.vcf"
+		config["output"]+"sample_sets/{project}_{species}_{mixed}_monoclonal_allmaf.vcf"
 	output: 
-		config["output"]+"sample_sets/{project}_{species}_{mixed}_monoclonal_nomissing.recode.vcf"
+		config["output"]+"sample_sets/{project}_{species}_{mixed}_monoclonal_allmaf_nomissing.recode.vcf"
 	params:
-		outfile = config["output"]+"sample_sets/{project}_{species}_{mixed}_monoclonal_nomissing"
+		outfile = config["output"]+"sample_sets/{project}_{species}_{mixed}_allmaf_monoclonal_nomissing"
 	conda: 
 		"envs/filter.yaml"
 	shell: 
@@ -936,18 +1132,18 @@ rule remove_missing:
 rule gzip_nonmissing:
 ###rezips monoclonal sample set vcf file
 	input:
-		config["output"]+"sample_sets/{project}_{species}_{mixed}_monoclonal_nomissing.recode.vcf"
+		config["output"]+"sample_sets/{project}_{species}_{mixed}_monoclonal_allmaf_nomissing.recode.vcf"
 	output:
-		config["output"]+"sample_sets/{project}_{species}_{mixed}_monoclonal_nomissing.vcf.gz"
+		config["output"]+"sample_sets/{project}_{species}_{mixed}_monoclonal_allmaf_nomissing.vcf.gz"
 	shell:
 		"bgzip -c {input} > {output}"
 
 rule index_nomissing_vcfs:
 ###generates index for non-missing monoclonal sample vcf files
 	input:
-		config["output"]+"sample_sets/{project}_{species}_{mixed}_monoclonal_nomissing.vcf.gz"
+		config["output"]+"sample_sets/{project}_{species}_{mixed}_monoclonal_allmaf_nomissing.vcf.gz"
 	output:
-		config["output"]+"sample_sets/{project}_{species}_{mixed}_monoclonal_nomissing.vcf.gz.tbi"
+		config["output"]+"sample_sets/{project}_{species}_{mixed}_monoclonal_allmaf_nomissing.vcf.gz.tbi"
 	conda:
 		"envs/masker.yaml"
 	shell:
@@ -956,11 +1152,11 @@ rule index_nomissing_vcfs:
 rule subset_chr:
 ###subsets vcf files to only depict specific chromosomes for use in nSl calculations
 	input:
-		vcf = config["output"]+"sample_sets/{project}_{species}_{mixed}_monoclonal_nomissing.vcf.gz",
-		index = config["output"]+"sample_sets/{project}_{species}_{mixed}_monoclonal_nomissing.vcf.gz.tbi",
+		vcf = config["output"]+"sample_sets/{project}_{species}_{mixed}_monoclonal_allmaf_nomissing.vcf.gz",
+		index = config["output"]+"sample_sets/{project}_{species}_{mixed}_monoclonal_allmaf_nomissing.vcf.gz.tbi",
 		bed = config["input_beds"]+"{species}_chr.bed"
 	output:
-		config["output"]+"chr_sets/{project}_{species}_{mixed}_monoclonal_nomissing_{chromosome}.vcf.gz"
+		config["output"]+"chr_sets/{project}_{species}_{mixed}_monoclonal_allmaf_nomissing_{chromosome}.vcf.gz"
 	conda:
 		"envs/bcftools.yaml"
 	shell:
@@ -968,7 +1164,7 @@ rule subset_chr:
 				
 rule calc_n_sl:
 	input:
-		vcf = config["output"]+"chr_sets/{project}_{species}_{mixed}_monoclonal_nomissing_{chromosome}.vcf.gz"
+		vcf = config["output"]+"chr_sets/{project}_{species}_{mixed}_monoclonal_allmaf_nomissing_{chromosome}.vcf.gz"
 	output:
 		config["output"]+"selection/{project}_{species}_{mixed}_nsl_{chromosome}.nsl.out"
 	conda:
@@ -1017,7 +1213,7 @@ rule compile_pf_n_sl:
 rule tajiima_d:
 	#currently using monoclonal samples only and with only non-missing sites
 	input:
-		config["output"]+"sample_sets/{project}_{species}_{mixed}_monoclonal_nomissing.vcf.gz"
+		config["output"]+"sample_sets/{project}_{species}_{mixed}_monoclonal_allmaf_nomissing.vcf.gz"
 	output:
 		config["output"]+"selection/{project}_{species}_{mixed}.Tajima.D"
 	params:
@@ -1032,10 +1228,11 @@ rule tajiima_d:
 rule select_tajima_d:
 ###collects tajima's D values within certain windows and compiles into two files
 ###one file shows the tajima's D within protein coding genes, the other does the same for exons only
+### gene and exon bed files can include extrachromosomal contigs. Tajima's D values will onyl be extracted for loci with SNPs in the final analysis vcf
 	input:
 		stats = config["output"]+"selection/{project}_{species}_{mixed}.Tajima.D",
-		genes = config["input_beds"]+ "{species}_genes.bed",
-		exons = config["input_beds"]+ "{species}_exons.bed"	
+		genes = config["output"]+ "beds/{species}_genes_sorted.bed",
+		exons = config["output"]+ "beds/{species}_exons_sorted.bed"	
 	output:
 		genes = config["output"]+"selection/{project}_{species}_{mixed}_tajimad_genes.txt",
 		exons = config["output"]+"selection/{project}_{species}_{mixed}_tajimad_exons.txt"

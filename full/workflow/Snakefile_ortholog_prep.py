@@ -40,9 +40,9 @@ for f in open(config["input_lists"]+"dbimport_pf3d7_samplemap.txt").readlines():
 rule all:
 #Previous rules should use wildcards for the project and species, but this final rule should employ the actual names and terms for the final file to be created
 	input:
-		pf_orthos_masked = config["input_beds"]+ config["pf_orthos_masked"],
-		poc_orthos_masked = config["input_beds"]+ config["poc_orthos_masked"],
-		pow_orthos_masked = config["input_beds"]+ config["pow_orthos_masked"],
+		pf_orthos_masked = config["output"]+ config["pf_orthos_masked"],
+		poc_orthos_masked = config["output"]+ config["poc_orthos_masked"],
+		pow_orthos_masked = config["output"]+ config["pow_orthos_masked"],
 
 rule ovale_coverage_bed_files:
 ### generate bed files for each sample by species call that show the intervals of the genome with over 5X covergae
@@ -155,12 +155,12 @@ rule ortholog_masker:
 		pf_core = config["input_beds"]+"pf3d7_core.bed"	,
 		pf_coverage_mask = config["output"]+"statistics/coverage_beds/pf3d7_"+config["prop"]+"cov"+config["cov_filter"]+"_merged.bed",
 	output:
-		pf_orthos_masked = config["input_beds"]+config["pf_orthos_masked"],
-		poc_orthos_masked = config["input_beds"]+config["poc_orthos_masked"],
-		pow_orthos_masked = config["input_beds"]+config["pow_orthos_masked"],
-		pf_orthos_unfiltered = config["input_beds"]+config["pf_orthos_unfiltered"],	
-		poc_orthos_unfiltered = config["input_beds"]+config["poc_orthos_unfiltered"],
-		pow_orthos_unfiltered = config["input_beds"]+config["pow_orthos_unfiltered"],		
+		pf_orthos_masked = config["output"]+config["pf_orthos_masked"],
+		poc_orthos_masked = config["output"]+config["poc_orthos_masked"],
+		pow_orthos_masked = config["output"]+config["pow_orthos_masked"],
+		pf_orthos_unfiltered = config["output"]+config["pf_orthos_unfiltered"],	
+		poc_orthos_unfiltered = config["output"]+config["poc_orthos_unfiltered"],
+		pow_orthos_unfiltered = config["output"]+config["pow_orthos_unfiltered"],		
 	resources:
 		mem_mb = 20000	
 	script:
