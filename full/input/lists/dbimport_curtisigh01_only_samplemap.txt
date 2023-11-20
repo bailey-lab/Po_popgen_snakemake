@@ -1,0 +1,13 @@
+3116A_S25	output/gvcfs/samples/3116A_S25_curtisigh01.g.vcf.gz
+2714A_S23	output/gvcfs/samples/2714A_S23_curtisigh01.g.vcf.gz
+Tan_LDB_1610_D0_S17	output/gvcfs/samples/Tan_LDB_1610_D0_S17_curtisigh01.g.vcf.gz
+Tan_LDB_475_S16	output/gvcfs/samples/Tan_LDB_475_S16_curtisigh01.g.vcf.gz
+Tan_LDB_426_S15	output/gvcfs/samples/Tan_LDB_426_S15_curtisigh01.g.vcf.gz
+DSG272_S12	output/gvcfs/samples/DSG272_S12_curtisigh01.g.vcf.gz
+366152_S10	output/gvcfs/samples/366152_S10_curtisigh01.g.vcf.gz
+364184_S9	output/gvcfs/samples/364184_S9_curtisigh01.g.vcf.gz
+3073204_S7	output/gvcfs/samples/3073204_S7_curtisigh01.g.vcf.gz
+1031006_S4	output/gvcfs/samples/1031006_S4_curtisigh01.g.vcf.gz
+1013003_S3	output/gvcfs/samples/1013003_S3_curtisigh01.g.vcf.gz
+1012505_S2	output/gvcfs/samples/1012505_S2_curtisigh01.g.vcf.gz
+1011201_S1	output/gvcfs/samples/1011201_S1_curtisigh01.g.vcf.gz

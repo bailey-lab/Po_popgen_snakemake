@@ -8,3 +8,4 @@ cp workflow/Snakefile_processing.py workflow/Snakefile_p_submission.py
 #snakemake --use-conda -s workflow/Snakefile_ortholog_prep.py --profile slurm --rerun-incomplete
 cp workflow/Snakefile_analysis.py workflow/Snakefile_a_submission.py
 snakemake --use-conda -s workflow/Snakefile_a_submission.py --profile slurm --rerun-incomplete
+snakemake --use-conda -s workflow/Snakefile_phylogeny.py --profile slurm --rerun-incomplete
