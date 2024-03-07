@@ -82,12 +82,12 @@ cds_dens = (cds_snp_count)/(cds_interval/1000)
 
 
 #write densities to outfile
-outfile.writelines(["Genome SNP density: ", str(genome_dens), " SNPs: ", str(genome_snp_count), " interval: ",str(genome_interval)," bases\n"])
-outfile.writelines(["Gene SNP density: ", str(gene_dens), " SNPs: ", str(gene_snp_count), " interval: ",str(gene_interval)," bases\n"])
-outfile.writelines(["Exon SNP density: ", str(exon_dens), " SNPs: ", str(exon_snp_count), " interval: ",str(exon_interval)," bases\n"])
-outfile.writelines(["Intron SNP density: ", str(intron_dens), " SNPs: ", str(intron_snp_count), " interval: ",str(intron_interval)," bases\n"])
-outfile.writelines(["CDS SNP density: ", str(cds_dens), " SNPs: ", str(cds_snp_count), " interval: ",str(cds_interval)," bases\n"])
-outfile.writelines(["Intergenic SNP density: ", str(intergenic_dens), " SNPs: ", str(intergenic_snp_count), " interval: ",str(intergenic_interval)," bases\n"])
+outfile.writelines(["Genome SNP density: ", str(genome_dens), "; SNPs: ", str(genome_snp_count), "; interval: ",str(genome_interval)," bases\n"])
+outfile.writelines(["Gene SNP density: ", str(gene_dens), "; SNPs: ", str(gene_snp_count), "; interval: ",str(gene_interval)," bases\n"])
+outfile.writelines(["Exon SNP density: ", str(exon_dens), "; SNPs: ", str(exon_snp_count), "; interval: ",str(exon_interval)," bases\n"])
+outfile.writelines(["Intron SNP density: ", str(intron_dens), "; SNPs: ", str(intron_snp_count), "; interval: ",str(intron_interval)," bases\n"])
+outfile.writelines(["CDS SNP density: ", str(cds_dens), "; SNPs: ", str(cds_snp_count), "; interval: ",str(cds_interval)," bases\n"])
+outfile.writelines(["Intergenic SNP density: ", str(intergenic_dens), "; SNPs: ", str(intergenic_snp_count), "; interval: ",str(intergenic_interval)," bases\n"])
 
 
 

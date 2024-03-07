@@ -71,7 +71,7 @@ test_RMCLmat <- t(test_RMCLmat)
 
 orig_wd <- getwd()
 #setwd("/pine/scr/k/e/kellybce/ovale1r/novaseq/ov1variants/statistics/")
-devtools::install_github("OJWatson/McCOILR")
+#devtools::install_github("OJWatson/McCOILR")
 library("McCOILR")
 
 invisible(McCOIL_categorical(test_RMCLmat,
