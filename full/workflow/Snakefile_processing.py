@@ -1,5 +1,7 @@
-#Setting up conda
-#navigate to /work/users/k/e/kellybce/ovale1r/snakemake
+## This file allows for alignment and variant calling of whole-genome sequencing data of P. ovale parasite DNA isolates
+
+###Setting up conda
+#navigate to directory
 #Load anaconda through installation or local version
 #module load anaconda/2021.11
 #set up conda environment
@@ -9,23 +11,17 @@
 ###then run the snakefile from the snakemake/directory (Snakefile is the in the workflow directory)
 #snakemake --use-conda --cores 1 --jobs 1 -s workflow/Snakefile
 
-###TODO:
-#	update wallikeru reference genome for analysis pipelin
-#   when to check with flagstats? after selecting to ovale genome only or also run a step to evaluate the double reference
-#   add a basequalityscorerecalibrator step, which will involde taking in the unrecalibrated vcf?
-#  consider adding lmiting to chromosomes here so we can remove the mask_po_chr rule from the analysis snakefile
-#  add beginning that loads in info about initial ortholog list
-#  add rule that calculates coverage at orthologs? what will we do for pf orthologs? is it ok to just check the ovale orthologs
-#  new directory: no files in the same directory as another directory, leads ot ambiguity in wildcards
-#  for merging across L001 and L002 for a subset of files, consider using dynamic() snakemake function to allow flexibility in rule outputs and inputs
-#  gatk CollectAlignmentSummaryMetrics rule?
-#  sgould I use ovale-pf or ovale-pf-human? seems like not much coverage of human genome but boosts mapping a lot
-#  big loss of data at haplotypecaller, maybe a bit earlier. possibly because ploidy was set to 1 which wont allow for higher COI? karamoko's preprint discusses this
-#  smaller loss of data at ovale selection step, but may have to do with updated reference genomes
-#  add speciescall to combination of analyses
-
 ###needed input files:
-#	sample name map for DBimportation step, showing which gvcfs for which samples and species should be compiled
+#  Fastq.gz files containing sequencing reads for all samples. This pipeline used paired-end reads (R1 and R2 files) and, for some samples, multiple sequencing lanes that will be merged
+#  List of sample names
+#  List of sample file names
+#  List of sample file names that must be merged (run in parallel on separate sequencing lanes)
+#  List of sample file names that do not need to be merged (only run on a single sequencing lane)
+#  Table containing readgroup information for all samples
+#  Bed file containing desired genomic contigs to be analyzed. In this case, chromosomal contigs for both P. ovale species
+#  Reference genome for alignment and processing in .fasta format. Must align with bed files
+#  sample name map for DBimportation step, showing which gvcfs for which samples and species should be compiled
+
 
 
 configfile: "config/config.yaml"
@@ -86,55 +82,51 @@ wallikericr01_chr = chrom_names(config["input_beds"]+ "wallikericr01_chr.bed")
 ###Determines the final files to be output by the snakemake pipeline
 rule all:
 #Previous rules should use wildcards for the project and species, but this final rule should employ the actual names and terms for the final file to be created
+#Comment in/out specific file endpoints to adjust the portion of the pipeline that will be run
 	input:
-		#confirm the presence of the dual reference genomes
-		#dualovale_pf = expand(config["input"]+"genomes/{species}-pf3d7.fasta", species = ["curtisigh01","wallikericr01"]),
-		#fai = expand(config["input"]+"genomes/{species}-pf3d7.fasta.fai", species = ["curtisigh01","wallikericr01"]),
-		#bwa_index = expand(config["input"]+"genomes/{species}-pf3d7.fasta.0123", species = ["curtisigh01","wallikericr01"]),
-		#gatk_dict = expand(config["input"]+"genomes/{species}-pf3d7.dict", species = ["curtisigh01","wallikericr01"]),
+		###confirm the presence of the dual reference genomes and needed indices
+		dualovale_pf = expand(config["input"]+"genomes/{species}-pf3d7.fasta", species = ["curtisigh01","wallikericr01"]),
+		fai = expand(config["input"]+"genomes/{species}-pf3d7.fasta.fai", species = ["curtisigh01","wallikericr01"]),
+		bwa_index = expand(config["input"]+"genomes/{species}-pf3d7.fasta.0123", species = ["curtisigh01","wallikericr01"]),
+		gatk_dict = expand(config["input"]+"genomes/{species}-pf3d7.dict", species = ["curtisigh01","wallikericr01"]),
 		###Check initial quality of reads
-		#fastqc = expand(config["output"]+"fastqc/untrimmed/{samplefile}_fastqc.zip", samplefile = samplefiles),
-		###confirm trimmomatic step works, but only checks for lane 1 and paired 1; all other files should also be produced
-		#trimmed_bothlanes = expand(config["output"]+"trimmed_reads/{samplename}_{lane}_1P.fastq.gz", samplename = samples_to_merge, lane =["L001","L002"]),
-		#trimmed_onelane = expand(config["output"]+"trimmed_reads/{samplename}_L001_1P.fastq.gz", samplename = samples_no_merge),
-		###fastqc trimmed files, must manually check all forms
-		#fastqc_bothlanes = expand(config["output"]+"fastqc/trimmed/{samplename}_{lane}_{pair}_fastqc.zip", samplename = samples_to_merge, lane = ["L001","L002"], pair = ["1P","2P"]),
-		#fastqc_onelane = expand(config["output"]+"fastqc/trimmed/{samplename}_L001_{pair}_fastqc.zip", samplename = samples_no_merge, pair = ["1P", "2P"]),
+		fastqc = expand(config["output"]+"fastqc/untrimmed/{samplefile}_fastqc.zip", samplefile = samplefiles),
 		###align to both reference genomes
-		#alignments_bothlanes = expand(config["output"]+"alignments/{samplename}_{lane}_{species}-pf3d7.bam", samplename = samples_to_merge, lane = ["L001","L002"], species = ["curtisigh01","wallikericr01"]),
-		#alignments_onelane = expand(config["output"]+"alignments/{samplename}_L001_{species}-pf3d7.bam", samplename = samples_no_merge, species = ["curtisigh01","wallikericr01"]),
+		alignments_bothlanes = expand(config["output"]+"alignments/{samplename}_{lane}_{species}-pf3d7.bam", samplename = samples_to_merge, lane = ["L001","L002"], species = ["curtisigh01","wallikericr01"]),
+		alignments_onelane = expand(config["output"]+"alignments/{samplename}_L001_{species}-pf3d7.bam", samplename = samples_no_merge, species = ["curtisigh01","wallikericr01"]),
 		###generate sorted sam files
-		#sort_bothlanes = expand(config["output"]+"alignments/sorted/{samplename}_{lane}_{species}-pf3d7_sorted.bam", samplename = samples_to_merge, lane = ["L001","L002"], species = ["curtisigh01","wallikericr01"]),
-		#sort_onelane = expand(config["output"]+"alignments/sorted/{samplename}_L001_{species}-pf3d7_sorted.bam", samplename = samples_no_merge, species = ["curtisigh01","wallikericr01"]),
-		###merge across sequencing lanes, let fail for files with only 
-		#merged = expand(config["output"]+"alignments/sorted/merged/{samplename}_{species}-pf3d7_sorted_merged.bam", samplename = samples_to_merge, species = ["curtisigh01","wallikericr01"]),
-		#unmerged = expand(config["output"]+"alignments/sorted/merged/{samplename}_{species}-pf3d7_sorted_merged.bam", samplename = samples_no_merge, species = ["curtisigh01","wallikericr01"]),
-		#totalmerge = expand(config["output"]+"merged_alignments/{samplename}_{species}-pf3d7.bam", samplename = samplenames, species = ["curtisigh01","wallikericr01"]),
-		###readgrouping
-		#readgrouped = expand(config["output"]+"merged_alignments/readgrouped/{samplename}_{species}-pf3d7.bam", samplename = samplenames, species = ["curtisigh01","wallikericr01"]),
-		###Deduplication
-		#dedupped = expand(config["output"]+"merged_alignments/readgrouped/dedupped/{samplename}_{species}-pf3d7.bam", samplename = samplenames, species = ["curtisigh01","wallikericr01"]),
-		###Ovale selection
-		#ovaleselected = expand(config["output"]+"ovale_alignments/{samplename}_{species}.bam", samplename = samplenames, species = ["curtisigh01","wallikericr01"]),
-		###alignment cleaning
-		#cleaned = expand(config["output"]+"ovale_alignments/cleaned/{samplename}_{species}.bam", samplename = samplenames, species = ["curtisigh01","wallikericr01"]),
-		###Alignment statistics
+		sort_bothlanes = expand(config["output"]+"alignments/sorted/{samplename}_{lane}_{species}-pf3d7_sorted.bam", samplename = samples_to_merge, lane = ["L001","L002"], species = ["curtisigh01","wallikericr01"]),
+		sort_onelane = expand(config["output"]+"alignments/sorted/{samplename}_L001_{species}-pf3d7_sorted.bam", samplename = samples_no_merge, species = ["curtisigh01","wallikericr01"]),
+		###merge across sequencing lanes for samples run on multiple lanes
+		merged = expand(config["output"]+"alignments/sorted/merged/{samplename}_{species}-pf3d7_sorted_merged.bam", samplename = samples_to_merge, species = ["curtisigh01","wallikericr01"]),
+		unmerged = expand(config["output"]+"alignments/sorted/merged/{samplename}_{species}-pf3d7_sorted_merged.bam", samplename = samples_no_merge, species = ["curtisigh01","wallikericr01"]),
+		totalmerge = expand(config["output"]+"merged_alignments/{samplename}_{species}-pf3d7.bam", samplename = samplenames, species = ["curtisigh01","wallikericr01"]),
+		###Add readgroup informaton
+		readgrouped = expand(config["output"]+"merged_alignments/readgrouped/{samplename}_{species}-pf3d7.bam", samplename = samplenames, species = ["curtisigh01","wallikericr01"]),
+		###Perform deduplication step
+		dedupped = expand(config["output"]+"merged_alignments/readgrouped/dedupped/{samplename}_{species}-pf3d7.bam", samplename = samplenames, species = ["curtisigh01","wallikericr01"]),
+		###Select reads that align better to P. ovale reference genome than P. falciparum
+		ovaleselected = expand(config["output"]+"ovale_alignments/{samplename}_{species}.bam", samplename = samplenames, species = ["curtisigh01","wallikericr01"]),
+		###Perform samtools clean step
+		cleaned = expand(config["output"]+"ovale_alignments/cleaned/{samplename}_{species}.bam", samplename = samplenames, species = ["curtisigh01","wallikericr01"]),
+		###Generate various alignment statistics
 		ovale_cov = expand(config["output"]+"statistics_alignments/genomecov/ovale/{samplename}_{species}_genomecov{depth}.txt", samplename = samplenames, species = ["curtisigh01","wallikericr01"], depth = ["1","5","10"]),
 		competitive_cov = expand(config["output"]+"statistics_alignments/genomecov/competitive/{samplename}_{dual}_genomecov{depth}.txt", samplename = samplenames, dual = ["curtisigh01-pf3d7","wallikericr01-pf3d7"], depth = ["1","5","10"]),
 		ovale_flagstats = expand(config["output"]+"statistics_alignments/flagstats/ovale/{samplename}_{species}_flagstats.txt", samplename = samplenames, species = ["curtisigh01","wallikericr01"]),
 		competitive_flagstats = expand(config["output"]+"statistics_alignments/flagstats/competitive/{samplename}_{dual}_flagstats.txt", samplename = samplenames, dual = ["curtisigh01-pf3d7","wallikericr01-pf3d7"]),
 		coverage = expand(config["output"]+"statistics_alignments/coverage/{samplename}_{species}_coverage.txt", samplename = samplenames, species = ["curtisigh01","wallikericr01"]),
 		overall_coverage = expand(config["output"]+"statistics_alignments/overall_coverage/{species}_coverage-at-{depth}.txt", species = ["curtisigh01","wallikericr01"], depth = ["1","5","10"]),
-		###Variant calling
+		###Call variants across all samples using both reference genomes, then combine gvcfs only among samples of the appropriate species as determined by separate species-specific qPCR
 		gvcf = expand(config["output"]+"gvcfs/samples/{samplename}_{species}.g.vcf.gz", samplename = samplenames, species = ["curtisigh01","wallikericr01"]),
 		db_species = expand(config["output"]+"gvcfs/grouped/{species}_{mixed}", species = ["curtisigh01","wallikericr01"], mixed = ["andmixed","only"]),
-		vcf = expand(config["output"]+"vcfs/ov1/ov1_{species}_{mixed}.vcf.gz", species = ["curtisigh01","wallikericr01"], mixed = ["andmixed","only","all","speciescall"]),
-		###administrative documents showing the pipeline and config inputs
+		vcf = expand(config["output"]+"vcfs/ov1/ov1_{species}_{mixed}.vcf.gz", species = ["curtisigh01","wallikericr01"], mixed = ["speciescall"]),
+		###Generate administrative documents showing the pipeline and config inputs
 		config = config["output"]+"pipeline/config.yaml",
 		snakefile = config["output"]+"pipeline/Snakefile_processing.py"
 
-###Transfers a copy of the config file and Snakefile to the output for future reference of those results
+
 rule copy_snakefileandconfig:
+###Transfers a copy of the config file and Snakefile to the output for future reference of those results
 	input:
 		config = "config/config.yaml",
 		snakefile = "workflow/Snakefile_processing.py"
@@ -145,8 +137,8 @@ rule copy_snakefileandconfig:
 		"""cp {input.config} {output.config}
 		cp {input.snakefile} {output.snakefile}"""
 
-###prepares concatenated reference genomes of curtisi and wallikeri
 rule dual_reference:
+###prepares concatenated reference genomes of curtisi and wallikeri
 	input:
 		ovale = config["input_genomes"]+"{ovale}01.fasta",
 		pf3d7 = config["input_genomes"]+"pf3d7.fasta"
@@ -156,6 +148,7 @@ rule dual_reference:
 		"cat {input.ovale} {input.pf3d7} > {output}"
 
 rule samtools_index:
+#generate samtools index file of reference genome
 	input:
 		config["input_genomes"]+"{ovale}01-pf3d7.fasta"
 	output:
@@ -168,6 +161,7 @@ rule samtools_index:
 		"samtools faidx {input}"
 
 rule bwa_index:
+#generate bwa-mem index file of reference genome
 	input:
 		config["input_genomes"]+"{ovale}01-pf3d7.fasta"
 	output:
@@ -178,6 +172,7 @@ rule bwa_index:
 		"bwa-mem2 index {input}"
 
 rule gatk_index:
+#generate gatk index file of reference genome
 	input:
 		config["input_genomes"]+"{ovale}01-pf3d7.fasta"
 	output:
@@ -187,8 +182,9 @@ rule gatk_index:
 	shell:
 		"gatk CreateSequenceDictionary -R {input}"
 		
-###process sample reads
+
 rule fastqc_raw:
+# generate fastqc files representing sequencing quality metrics
 	input:
 		config["input"]+"reads/{samplefile}.fastq.gz"
 	output:
@@ -201,6 +197,7 @@ rule fastqc_raw:
 		"fastqc {input} -o {params.outdirectory}"
 		
 rule trimmomatic:
+# trim sequencing adapters
 	input:
 		R1 = config["input_reads"]+"{samplename}_{lane}_R1.fastq.gz",
 		R2 = config["input_reads"]+"{samplename}_{lane}_R2.fastq.gz"
@@ -217,6 +214,7 @@ rule trimmomatic:
 		"trimmomatic PE -threads 8 {input.R1} {input.R2} -baseout {params.outfile} ILLUMINACLIP:/nas/longleaf/apps/trimmomatic/0.36/Trimmomatic-0.36/adapters/TruSeq3-PE-2.fa:2:30:10:2:keepBothReads"
 
 rule fastqc_trimmed:
+# generate fastqc files of sequencing data following trimming
 	input:
 		config["output"]+"trimmed_reads/{samplename}_{lane}_{paired}.fastq.gz"
 	output:
@@ -230,6 +228,7 @@ rule fastqc_trimmed:
 
 
 rule align:
+# align sample reads to P. ovale reference genomes
 	input:
 		P1 = config["output"]+"trimmed_reads/{samplename}_{lane}_1P.fastq.gz",
 		P2 = config["output"]+"trimmed_reads/{samplename}_{lane}_2P.fastq.gz",
@@ -247,6 +246,7 @@ rule align:
 		"bwa-mem2 mem -t 8 {input.reference} {input.P1} {input.P2} -o {output}"
 		
 rule sort:
+# sort aligned reads
 	input:
 		config["output"]+"alignments/{samplename}_{lane}_{species}.bam"
 	output:
@@ -259,6 +259,7 @@ rule sort:
 		"picard SortSam I={input} O={output} sort_order=coordinate create_index=true"
 
 rule prep_merge:
+# prep samples that were sequenced in parallel lanes to be merged across lanes
 	input:
 		expand(config["output"]+"alignments_sorted/{samplename}_{lane}_{species}-pf3d7.bam", samplename = samples_to_merge, species = ["curtisigh01","wallikericr01"], lane = ["L001","L002"])
 	output:
@@ -269,6 +270,7 @@ rule prep_merge:
 		"for i in {input}; do cp ${{i}} {params.outdir}; done"
 
 rule prep_nomerge:
+# copy sample files for samples which were run on a single sequencing lane and do not need to be merge
 	input:
 		expand(config["output"]+"alignments_sorted/{samplename}_L001_{species}-pf3d7.bam", samplename = samples_no_merge, species = ["curtisigh01","wallikericr01"])
 	output:
@@ -279,6 +281,7 @@ rule prep_nomerge:
 		"for i in {input}; do cp ${{i}} {params.outdir}; done"
 
 rule merge:
+# perform merge of samples that were sequenced in parallel lanes
 	input:
 		lane1 = config["output"]+"to_merge/{samplename}_L001_{species}-pf3d7.bam"
 	params:
@@ -292,57 +295,8 @@ rule merge:
 	script:
 		"scripts/merger.py"
 
-
-# rule merge:
-	# input:
-		# L001 = expand(config["output"]+"alignments/sorted/{samplename}_L001_{species}-pf3d7_sorted.bam", samplename = samples_to_merge, allow_missing=True),#, species = ["curtisigh01","wallikericr01"]),
-		# L002 = expand(config["output"]+"alignments/sorted/{samplename}_L002_{species}-pf3d7_sorted.bam", samplename = samples_to_merge, allow_missing = True)#, species = ["curtisigh01","wallikericr01"])
-	# output:
-		# expand(config["output"]+"alignments/sorted/merged/{samplename}_{species}-pf3d7_sorted_merged.bam", samplename = samples_to_merge, allow_missing=True)#, species = ["curtisigh01","wallikericr01"])
-	# params:
-		# index = len(samples_to_merge)
-	# conda:
-		# "envs/samtools.yaml"
-	# resources:
-		# mem_mb = 150000
-	# script:
-		# "scripts/merger.py"
-	# #shell:
-	# #	"for i in {{0..{params.index}}}; do samtools merge -o {output[${{i}}]} {input.L001[${{i}}]} {input.L002[${{i}}]}; done"
-	# #run:
-	# #	for i in range(0,params.index):
-	# #		subprocess.call(["samtools","merge","-o",output[i],input.L001[i],input.L002[i]])
-# rule nomerge:
-	# input:
-		# expand(config["output"]+"alignments/sorted/{samplename}_L001_{species}-pf3d7_sorted.bam", samplename = samples_no_merge, allow_missing=True)#, species = ["curtisigh01","wallikericr01"])
-	# output:
-		# expand(config["output"]+"alignments/sorted/merged/{samplename}_{species}-pf3d7_sorted_merged.bam", samplename = samples_no_merge, allow_missing=True)#, species = ["curtisigh01","wallikericr01"])
-	# params:
-		# index = len(samples_no_merge)
-	# resources:
-		# mem_mb = 150000
-	# #shell:
-	# #	"for i in ((1..(params.index}}}; do cp {input} {output}; done"
-	# script:
-		# "scripts/nomerger.py"
-# 
-# rule clean_merge_names:
-	# input:
-		# config["output"]+"alignments/sorted/merged/{samplename}_{dual}_sorted_merged.bam"
-	# output:
-		# config["output"]+"merged_alignments/{samplename}_{dual}.bam"
-	# shell:
-		# "cp {input} {output}"
-
-#rule clean_unmerge_names:
-#	input:
-#		config["output"]+"alignments/sorted/merged/{samplename}_{dual}_sorted_unmerged.bam"
-#	output:
-#		config["output"]+"merged_alignments/{samplename}_{dual}.bam"
-#	shell:
-#		"cp {input} {output}"
-
 rule add_readgroup:
+# add readgroup information for all samples
 	input:
 		config["output"]+"merged_alignments/{samplename}_{dual}.bam"
 	output:
@@ -361,6 +315,7 @@ rule add_readgroup:
 		"picard AddOrReplaceReadGroups I={input} O={output} SORT_ORDER=coordinate RGID={params.RGID} RGLB={params.RGLB} RGPL={params.RGPL} RGPU={params.RGPU} RGSM={params.RGSM}"
 		
 rule deduplicate:
+# remove duplicate reads
 	input:
 		config["output"]+"readgrouped/{samplename}_{dual}.bam"
 	output:
@@ -374,6 +329,7 @@ rule deduplicate:
 		"gatk MarkDuplicatesSpark -I {input} -O {output.out} -M {output.metrics}"
 
 rule ovale_selecter:
+# select reads that align better to P. ovale reference genome portion of dual reference genome than the P. falciparum section.
 	input:
 		bam = config["output"]+"dedupped/{samplename}_{species}-pf3d7.bam",
 		ref =  config["input_genomes"]+"{species}.fasta",
@@ -388,6 +344,7 @@ rule ovale_selecter:
 		"samtools view -b -h {input.bam} -T {input.ref} -L {input.bed} > {output}"
 
 rule sam_cleaner:
+# perform samtools cleaning step
 	input:
 		config["output"]+"ovale_alignments/{samplename}_{species}.bam"
 	output:
@@ -400,6 +357,7 @@ rule sam_cleaner:
 		"gatk CleanSam -I {input} -O {output}"
 
 rule genome_coverage_ovale:
+# calculate coverage of reference genome for each sample at a given read depth after selecton of ovale reads
 	input:
 		config["output"]+"ovale_alignments_cleaned/{samplename}_{species}.bam"
 	output:
@@ -414,6 +372,7 @@ rule genome_coverage_ovale:
 		"bedtools genomecov -max {params.depth} -ibam {input} > {output}"
 
 rule genome_coverage_competitive:
+# calculate coverage of reference genome for each sample at a given read depth prior to selecton of ovale reads
 	input:
 		config["output"]+"dedupped/{samplename}_{dual}.bam"
 	output:
@@ -428,7 +387,7 @@ rule genome_coverage_competitive:
 		"bedtools genomecov -max {params.depth} -ibam {input} > {output}"
 
 rule coverage_calc:
-###calculates weighted coverage of the fourteen chromosomes for each species
+###calculates weighted coverage of the fourteen chromosomes for each species after selection of ovale reads
 	input:
 		cov = expand(config["output"]+"statistics_alignments/genomecov/ovale/{samplename}_{species}_genomecov{depth}.txt", samplename = samplenames, allow_missing = True),
 		bed = config["input_beds"]+"{species}_chr.bed"
@@ -439,6 +398,7 @@ rule coverage_calc:
 
 
 rule flagstats_ovale:
+# calculate mapping percentages and total read alignment after selection of ovale reads
 	input:
 		config["output"]+"ovale_alignments_cleaned/{samplename}_{species}.bam"
 	output:
@@ -449,6 +409,7 @@ rule flagstats_ovale:
 		"samtools flagstat {input} > {output}"
 
 rule flagstats_competitive:
+# calculate mapping percentages and total read alignment prior to selection of ovale reads
 	input:
 		config["output"]+"dedupped/{samplename}_{dual}.bam",
 	output:
@@ -459,6 +420,7 @@ rule flagstats_competitive:
 		"samtools flagstat {input} > {output}"
 
 rule coveragestats:
+# calculate coverage per chromosome for each sample
 	input:
 		config["output"]+"ovale_alignments_cleaned/{samplename}_{species}.bam"
 	output:
@@ -470,6 +432,7 @@ rule coveragestats:
 
 ###Variant Calling
 rule index_bams:
+# generate index of cleaned, final alignment .bam files
 	input:
 		config["output"]+"ovale_alignments_cleaned/{samplename}_{species}.bam"
 	output:
@@ -480,6 +443,7 @@ rule index_bams:
 		"samtools index {input}"
 
 rule haplotypecaller_curtisigh01:
+# call variants across P. ovale curtisi GH01 reference genome for all samples, on a chromosome-by-chromosome basis for speed
 	input:
 		bam = config["output"]+"ovale_alignments_cleaned/{samplename}_curtisigh01.bam",
 		index = config["output"]+"ovale_alignments_cleaned/{samplename}_curtisigh01.bam.bai",
@@ -501,6 +465,7 @@ rule haplotypecaller_curtisigh01:
 
 
 rule combine_chrom_gvcfs_curtisigh01:
+# compile chromosomes from each sample's PocGH01 g.vcf files
 	input:
 		gvcfs = expand(config["output"]+"gvcfs/chromosomes/{samplename}_curtisigh01_{chromosome}.g.vcf.gz", chromosome = curtisigh01_chr.keys(), allow_missing = True),
 		ref = config["input_genomes"]+"curtisigh01.fasta",
@@ -516,6 +481,7 @@ rule combine_chrom_gvcfs_curtisigh01:
 		"gatk CombineGVCFs -R {input.ref} {params.var_command} -O {output}"
 
 rule haplotypecaller_wallikericr01:
+# call variants across P. ovale wallikeri CR01 reference genome for all samples, on a chromosome-by-chromosome basis for speed
 	input:
 		bam = config["output"]+"ovale_alignments_cleaned/{samplename}_wallikericr01.bam",
 		index = config["output"]+"ovale_alignments_cleaned/{samplename}_wallikericr01.bam.bai",
@@ -537,6 +503,7 @@ rule haplotypecaller_wallikericr01:
 
 
 rule combine_chrom_gvcfs_wallikericr01:
+# compile chromosomes from each sample's PowCR01 g.vcf files
 	input:
 		gvcfs = expand(config["output"]+"gvcfs/chromosomes/{samplename}_wallikericr01_{chromosome}.g.vcf.gz", chromosome = wallikericr01_chr.keys(), allow_missing = True),
 		ref = config["input_genomes"]+"wallikericr01.fasta",
@@ -553,6 +520,7 @@ rule combine_chrom_gvcfs_wallikericr01:
 
 
 rule dbimport_species:
+# generate dbimport directory and associated files, compiling g.vcfs for the samples that were identified as one species
 	input:
 		map = config["input_lists"]+"dbimport_{species}_{mixed}_samplemap.txt",
 		gvcfs = expand(config["output"]+"gvcfs/samples/{samplename}_{species}.g.vcf.gz", samplename = samplenames, allow_missing = True),
@@ -569,23 +537,8 @@ rule dbimport_species:
 		"gatk GenomicsDBImport --sample-name-map {input.map} --genomicsdb-workspace-path {params.dir} -L {input.bed}"
 
 
-#rule dbimport_speciesandmixed:
-#	input:
-#		map = config["input_lists"]+"dbimport_{species}_andmixed_samplemap.txt",
-#		gvcfs = expand(config["output"]+"gvcfs/samples/{samplename}_{species}.g.vcf.gz", samplename = samplenames, allow_missing = True),
-#		bed = config["input_beds"]+"{species}.bed"
-#	output:
-#		directory(config["output"]+"gvcfs/grouped/{species}_andmixed")
-#	params:
-#		dir = config["output"]+"gvcfs/grouped/{species}andmixed"
-#	conda:
-#		"envs/gatk.yaml"
-#	resources:
-#		mem_mb = 20000
-#	shell:
-#		"gatk GenomicsDBImport --sample-name-map {input.map} --genomicsdb-workspace-path {params.dir} -L {input.bed}"
-
 rule genotype_sample_gvcfs:
+# For each species' dbimport space, generate a g-zipped vcf file containing all called variants for all samples of that species
         input:
               	dir = config["output"]+"gvcfs/grouped/{species}_{mixed}",
                 ref = config["input_genomes"]+"{species}.fasta"

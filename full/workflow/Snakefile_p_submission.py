@@ -10,19 +10,6 @@
 #snakemake --use-conda --cores 1 --jobs 1 -s workflow/Snakefile
 
 ###TODO:
-#	update wallikeru reference genome for analysis pipelin
-#   when to check with flagstats? after selecting to ovale genome only or also run a step to evaluate the double reference
-#   add a basequalityscorerecalibrator step, which will involde taking in the unrecalibrated vcf?
-#  consider adding lmiting to chromosomes here so we can remove the mask_po_chr rule from the analysis snakefile
-#  add beginning that loads in info about initial ortholog list
-#  add rule that calculates coverage at orthologs? what will we do for pf orthologs? is it ok to just check the ovale orthologs
-#  new directory: no files in the same directory as another directory, leads ot ambiguity in wildcards
-#  for merging across L001 and L002 for a subset of files, consider using dynamic() snakemake function to allow flexibility in rule outputs and inputs
-#  gatk CollectAlignmentSummaryMetrics rule?
-#  sgould I use ovale-pf or ovale-pf-human? seems like not much coverage of human genome but boosts mapping a lot
-#  big loss of data at haplotypecaller, maybe a bit earlier. possibly because ploidy was set to 1 which wont allow for higher COI? karamoko's preprint discusses this
-#  smaller loss of data at ovale selection step, but may have to do with updated reference genomes
-#  add speciescall to combination of analyses
 
 ###needed input files:
 #	sample name map for DBimportation step, showing which gvcfs for which samples and species should be compiled
@@ -127,8 +114,9 @@ rule all:
 		overall_coverage = expand(config["output"]+"statistics_alignments/overall_coverage/{species}_coverage-at-{depth}.txt", species = ["curtisigh01","wallikericr01"], depth = ["1","5","10"]),
 		###Variant calling
 		gvcf = expand(config["output"]+"gvcfs/samples/{samplename}_{species}.g.vcf.gz", samplename = samplenames, species = ["curtisigh01","wallikericr01"]),
-		db_species = expand(config["output"]+"gvcfs/grouped/{species}_{mixed}", species = ["curtisigh01","wallikericr01"], mixed = ["andmixed","only"]),
-		vcf = expand(config["output"]+"vcfs/ov1/ov1_{species}_{mixed}.vcf.gz", species = ["curtisigh01","wallikericr01"], mixed = ["andmixed","only","all","speciescall"]),
+		#db_species = expand(config["output"]+"gvcfs/grouped/{species}_{mixed}", species = ["curtisigh01","wallikericr01"], mixed = ["andmixed","only"]),
+		#vcf = expand(config["output"]+"vcfs/ov1/ov1_{species}_{mixed}.vcf.gz", species = ["curtisigh01","wallikericr01"], mixed = ["andmixed","only","all","speciescall"]),
+		vcf = expand(config["output"]+"vcfs/ov1/ov1_{species}_{mixed}.vcf.gz", species = ["curtisigh01","wallikericr01"], mixed = ["speciescall"]),
 		###administrative documents showing the pipeline and config inputs
 		config = config["output"]+"pipeline/config.yaml",
 		snakefile = config["output"]+"pipeline/Snakefile_processing.py"

@@ -1,3 +1,5 @@
+### Contains needed sample names and file locations for various input, intermediate, and output files, as well as parameters for certain computational steps
+
 input: "input/"
 
 input_beds: "input/beds/"
@@ -14,23 +16,33 @@ output: "output/"
 
 config: "config/config.yaml"
 
-prop: "0.6"  #percent of ovale samples that must meet the coverage threshold to include a given genomic window
+prop: "0.6"  #percent of samples that must meet the coverage threshold to include a given genomic window
 
-cov_filter: "5" #depth of coverage an ovale window must have in order for orthologs within to be included in analysis
+cov_filter: "5" #depth of coverage an window must have in order for orthologs within to be included in analysis
 
-all_orthos: "all_pf-poc-pow_orthologs.tsv"
+all_triple_orthos: "all_pf-poc-pow_orthologs.tsv"
 
-pf_orthos_masked: "ortholog_beds/pf3d7_pf-poc-pow_orthologs_masked.tsv"
+pf_triple_orthos_masked: "ortholog_beds/pf3d7_pf-poc-pow_orthologs_masked.tsv"
 
-poc_orthos_masked: "ortholog_beds/curtisigh01_pf-poc-pow_orthologs_masked.tsv"
+poc_triple_orthos_masked: "ortholog_beds/curtisigh01_pf-poc-pow_orthologs_masked.tsv"
 
-pow_orthos_masked: "ortholog_beds/wallikericr01_pf-poc-pow_orthologs_masked.tsv"
+pow_triple_orthos_masked: "ortholog_beds/wallikericr01_pf-poc-pow_orthologs_masked.tsv"
 
-pf_orthos_unfiltered: "ortholog_beds/pf3d7_pf-poc-pow_orthologs_unfiltered.tsv"
+pf_triple_orthos_unfiltered: "ortholog_beds/pf3d7_pf-poc-pow_orthologs_unfiltered.tsv"
 
-poc_orthos_unfiltered: "ortholog_beds/curtisigh01_pf-poc-pow_orthologs_unfiltered.tsv"
+poc_triple_orthos_unfiltered: "ortholog_beds/curtisigh01_pf-poc-pow_orthologs_unfiltered.tsv"
 
-pow_orthos_unfiltered: "ortholog_beds/wallikericr01_pf-poc-pow_orthologs_unfiltered.tsv"
+pow_triple_orthos_unfiltered: "ortholog_beds/wallikericr01_pf-poc-pow_orthologs_unfiltered.tsv"
+
+all_ovale_orthos: "all_poc-pow_orthologs.tsv"
+
+poc_ovale_orthos_masked: "ortholog_beds/curtisigh01_poc-pow_orthologs_masked.tsv"
+
+pow_ovale_orthos_masked: "ortholog_beds/wallikericr01_poc-pow_orthologs_masked.tsv"
+
+poc_ovale_orthos_unfiltered: "ortholog_beds/curtisigh01_poc-pow_orthologs_unfiltered.tsv"
+
+pow_ovale_orthos_unfiltered: "ortholog_beds/wallikericr01_poc-pow_orthologs_unfiltered.tsv"
 
 curtisigh01_genes: "beds/curtisigh01_genes_sorted.bed"
 
@@ -44,7 +56,7 @@ pf3d7_genes: "beds/pf3d7_genes_sorted.bed"
 
 pf3d7_exons: "beds/pf3d7_exons_sorted.bed"
 
-tajima_window: "50"
+tajima_window: "300"
 
 general_java_opts:                        # ram and threads for less memory intensive gatk tools
   - "-Xms4G"                       # initial heap size

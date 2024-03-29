@@ -79,8 +79,8 @@ rule all:
 		#multi_align = expand(config["output"]+"consensus_seq/multi_alignment/ov1_{species}_speciescall.fasta", species = ["curtisigh01","wallikericr01","ovale"]),
 		nexus = expand(config["output"]+"consensus_seq/nexus/ov1_{species}_speciescall.nex", species = ["curtisigh01","wallikericr01"]),
 		test_nexus = config["output"]+"consensus_seq/nexus/test_chr.nex",
-		tree = expand(config["output"]+"consensus_seq/trees/ov1_{ovale}01_speciescall.nex1", ovale = ["curtisigh","wallikericr"]),
-		all_ovale_tree = config["output"]+"consensus_seq/trees/ov1_wallikericr01_all.nex1",
+		tree = expand(config["output"]+"consensus_seq/trees/ov1_{ovale}01_speciescall.nex1.mcmc", ovale = ["curtisigh","wallikericr"]),
+		all_ovale_tree = config["output"]+"consensus_seq/trees/ov1_wallikericr01_all.nex1.mcmc",
 		###Snakemake administrative###
 		config = config["output"]+"pipeline/config.yaml",
 		snakefile = config["output"]+"pipeline/Snakefile_phylogeny.py"
@@ -192,7 +192,7 @@ rule concat_ovale_fastas:
 	input:
 		ovale_fasta = expand(config["output"]+"consensus_seq/formatted_sample_fasta/{project}_wallikericr01_all-{sample}.fasta", sample = all_ovale_names.keys(), allow_missing = True),
 	output:
-		config["output"]+"consensus_seq/multi_sample_fasta/{project}_ovale_all.fasta"
+		config["output"]+"consensus_seq/multi_sample_fasta/{project}_wallikericr01_all.fasta"
 	shell:
 		"cat {input.ovale_fasta} > {output}"
 
@@ -283,9 +283,9 @@ rule concat_pow_fastas:
 
 rule fasta_to_nexus:
 	input:
-		config["output"]+"consensus_seq/multi_sample_fasta/{project}_{ovale}01_{mixed}.fasta"
+		config["output"]+"consensus_seq/multi_sample_fasta/{project}_{species}_{mixed}.fasta"
 	output:
-		config["output"]+"consensus_seq/nexus/{project}_{ovale}01_{mixed}.nex"
+		config["output"]+"consensus_seq/nexus/{project}_{species}_{mixed}.nex"
 	conda:
 		"envs/seqmagick.yaml"
 	resources:
@@ -307,11 +307,11 @@ rule test_fasta_to_nexus:
 
 rule write_mrbayes_nexus_execute_file:
 	input:
-		config["output"]+"consensus_seq/nexus/{project}_{ovale}01_{mixed}.nex"
+		config["output"]+"consensus_seq/nexus/{project}_{species}_{mixed}.nex"
 	output:
-		config["output"]+"consensus_seq/execute_files/{project}_{ovale}01_{mixed}_execute.nex"
+		config["output"]+"consensus_seq/execute_files/{project}_{species}_{mixed}_execute.nex"
 	params:
-		outfile = config["output"]+"consensus_seq/trees/{project}_{ovale}01_{mixed}.nex1"
+		outfile = config["output"]+"consensus_seq/trees/{project}_{species}_{mixed}.nex1"
 	shell:
 		"""echo 'begin mrbayes;
 		set autoclose=yes nowarnings=yes;
@@ -328,5 +328,7 @@ rule mrbayes_treemaker:
 		log = config["output"]+"consensus_seq/mrbayes_logs/{project}_{ovale}01_{mixed}.nex1_log.txt"
 	conda:
 		"envs/mrbayes.yaml"
+	resources:
+		mem_mb = 450000
 	shell:
 		"mb {input.execute} > {output.log}"
