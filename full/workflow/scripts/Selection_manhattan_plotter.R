@@ -1,3 +1,6 @@
+###Investigate and plot sigantures of selection across the genome
+### nSL and Tajima's D
+
 setwd("~/Documents/P. Ovale Genomic Analysis")
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       
 poc <- read.table("ov1_curtisigh01_speciescall_nsl_total.txt")
@@ -5,6 +8,7 @@ pow <- read.table("ov1_wallikericr01_speciescall_nsl_total.txt")
 pocchr <- read.table("curtisigh01_chr.bed")
 powchr <- read.table("wallikericr01_chr.bed")
 #Plot mapping quality by position across every chromosome
+
 library("stringr")
 #install.packages("ggplot2")
 library("ggplot2")
@@ -13,6 +17,7 @@ library("dplyr")
 library("tidyverse")
 #install.packages("ggtext")
 library("ggtext")
+library("ggpubr")
 ## set up manhattan plot
 
 
@@ -20,7 +25,7 @@ library("ggtext")
 ### Poc nSl for all variants
 
 #rename variables from table
-colnames(poc) <- c("chrom","pos","nsl")
+colnames(poc) <- c("chrom","pos","unnorm_nsl","nsl","significance")
 poc$chr <- as.numeric(substr(poc$chrom,9,10))
 colnames(pocchr) <- c("chrom","start","end")
 pocchr$chr <- as.numeric(substr(pocchr$chrom,9,10))
@@ -49,16 +54,16 @@ high_poc_nsl <- quantile(poc$nsl,0.995)
 high_abs_poc_nsl <- quantile(poc$nsl_abs,0.995)
 
 #generate plot
-manhplot <- ggplot(poc, aes(x = pos_cum, y = nsl_abs,
-                    color = factor(nsl_abs), shape = factor(chr), size = 3)) +
+pocplot_nsl <- ggplot(poc, aes(x = pos_cum, y = nsl_abs,
+                    color = factor(nsl_abs), shape = factor(chr), size = 3))+
                     geom_hline(yintercept = high_abs_poc_nsl, color = "grey40", linetype = "dashed") + 
-                    geom_point(alpha = 0.75, aes(color = cut(nsl_abs, c(-Inf, high_abs_poc_nsl, Inf), labels = c("normal","high")))) +#, shape = factor(chr))) +
+                    geom_point(alpha = 0.75, size = 1.5, aes(color = cut(nsl_abs, c(-Inf, high_abs_poc_nsl, Inf), labels = c("normal","high")))) +#, shape = factor(chr))) +
                     scale_x_continuous(label = chrom_cum$chr, breaks = chrom_cum$center) +
-                    scale_y_continuous(expand = c(0,0), limits = c(0, 3.5)) +
+                    scale_y_continuous(expand = c(0,0), limits = c(0, 4.75)) +
                     scale_color_manual(values = c("normal" = "#276FBF", "high" = "red")) +
-                    scale_shape_manual(values = rep(c(20,3), length(unique(poc$chr)))) +
+                    scale_shape_manual(values = rep(c(19,5), length(unique(poc$chr)))) +
                     scale_size_continuous(range = c(0.5,3)) +
-                    labs(x = "Chromosome", 
+                    labs(x = "Poc Chromosome", 
                           y = "Absolute nSl") + 
                     theme_minimal() +
          theme(plot.title = element_text(hjust = 0.5, size = 20),
@@ -68,10 +73,11 @@ manhplot <- ggplot(poc, aes(x = pos_cum, y = nsl_abs,
                axis.title.y = element_text(size=18),
               axis.title.x = element_text(size=18),
               axis.text.y = element_text(size = 16),
-              axis.text.x = element_text(angle = 60, size = 16, vjust = 0.5)) +
-            ggtitle("Absolute nSL for variants in Poc samples")
+              axis.text.x = element_text(angle = 60, size = 16, vjust = 0.5))
+            #ggtitle("Absolute nSL for variants in Poc samples")
     
-print(manhplot)
+print(pocplot_nsl)
+ggsave("selection/poc_nsl.png", plot = pocplot_nsl, device = "png", dpi = 600, width = 10, height = 6)
 
 #print loci with nSl above high_poc_nsl
 print(poc[poc$nsl_abs >= high_abs_poc_nsl, c("chrom","chr","pos", "nsl")])
@@ -80,6 +86,7 @@ print(poc[poc$chr == 9 & poc$pos > 1196000, c("chrom","chr","pos", "nsl")])
 #Investigate particular genes of interest
 #dhfr
 print(poc$nsl_abs[(poc$chr == 5) & (762457 < poc$pos) & (poc$pos < 764370)])
+(poc[(poc$chr == 5) & (762457 < poc$pos), c("pos","nsl","significance")])
 #chloroquone resistance transporter
 print(poc$nsl_abs[(poc$chr == 1) & (323118 < poc$pos) & (poc$pos < 326399)])
 #chloroquine resistance associated protein
@@ -94,7 +101,7 @@ print(poc$nsl_abs[(poc$chr == 14) & (2059533 < poc$pos) & (poc$pos < 2060640)])
 
 ### Pow nSl plot by variant
 
-colnames(pow) <- c("chrom","pos","nsl")
+colnames(pow) <- c("chrom","pos","unnorm","nsl","significance")
 pow$chr <- as.numeric(substr(pow$chrom,7,8))-4
 colnames(powchr) <- c("chrom","start","end")
 powchr$chr <- as.numeric(substr(powchr$chrom,7,8))-4
@@ -122,17 +129,16 @@ high_pow_nsl <- quantile(pow$nsl,0.995)
 high_abs_pow_nsl <- quantile(pow$nsl_abs,0.995)
 
 #generate plot
-manhplot <- ggplot(pow, aes(x = pos_cum, y = nsl_abs,
+powplot_nsl <- ggplot(pow, aes(x = pos_cum, y = nsl_abs,
                             color = factor(nsl_abs), shape = factor(chr), size = 3)) +
   geom_hline(yintercept = high_abs_pow_nsl, color = "grey40", linetype = "dashed") + 
-  geom_point(alpha = 0.75, aes(color = cut(nsl_abs, c(-Inf, high_abs_pow_nsl, Inf), labels = c("normal","high")))) +
+  geom_point(alpha = 0.75, size = 1.5, aes(color = cut(nsl_abs, c(-Inf, high_abs_pow_nsl, Inf), labels = c("normal","high")))) +
   scale_x_continuous(label = chrom_cum$chr, breaks = chrom_cum$center) +
-  scale_y_continuous(expand = c(0,0), limits = c(0, 3.5)) +
+  scale_y_continuous(expand = c(0,0), limits = c(0, 4.75)) +
   scale_color_manual(values = c("normal" = "#276FBF", "high" = "red")) +
   scale_size_continuous(range = c(0.5,3)) +
-  scale_shape_manual(values = rep(c(20,3), length(unique(pow$chr)))) +
-  labs(x = "Chromosome", 
-       y = "Absolute nSl") + 
+  scale_shape_manual(values = rep(c(19,5), length(unique(pow$chr)))) +
+  labs(x = "Pow Chromosome", y = element_blank()) + 
   theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5, size = 20),
         legend.position = "none",
@@ -141,10 +147,15 @@ manhplot <- ggplot(pow, aes(x = pos_cum, y = nsl_abs,
         axis.title.y = element_text(size=18),
         axis.title.x = element_text(size=18),
         axis.text.y = element_text(size = 16),
-        axis.text.x = element_text(angle = 60, size = 16, vjust = 0.5)) +
-  ggtitle("Absolute nSl for non-missing variants in monoclonal Pow samples")
+        axis.text.x = element_text(angle = 60, size = 16, vjust = 0.5)) 
+  #ggtitle("Absolute nSl for non-missing variants in monoclonal Pow samples")
 
-print(manhplot)
+print(powplot_nsl)
+ggsave("selection/pow_nsl.png", plot = powplot_nsl, device = "png", dpi = 600, width = 10, height = 6)
+library("ggpubr")
+po_nsl <- ggarrange(pocplot_nsl, powplot_nsl, ncol=2, nrow=1, widths = c(5,5))
+ggsave("selection/po_nsl.png", plot = po_nsl, device = "png", dpi = 600, width = 11.5, height = 5)
+
 
 #print loci with nSl above high_pow_nsl
 print(pow[pow$nsl_abs >= high_abs_pow_nsl, c("chrom","chr","pos", "nsl")])
@@ -168,10 +179,10 @@ print(pow$nsl_abs[(pow$chr == 14) & (1121839 < pow$pos) & (pow$pos < 1124323)])
 print(pow$nsl_abs[(pow$chr == 14) & (2083698 < pow$pos) & (pow$pos < 2084367)])
 
 #prepare Tajima D plots
-pocexons <- read.table("ov1_curtisigh01_speciescall_tajimad_exons.txt", header = TRUE)
-pocgenes <- read.table("ov1_curtisigh01_speciescall_tajimad_genes.txt", header = TRUE)
-powexons <- read.table("ov1_wallikericr01_speciescall_tajimad_exons.txt", header = TRUE)
-powgenes <- read.table("ov1_wallikericr01_speciescall_tajimad_genes.txt", header = TRUE)
+pocexons <- read.table("ov1_curtisigh01_speciescall_tajimad-300_exons.bed", header = FALSE)
+pocgenes <- read.table("ov1_curtisigh01_speciescall_tajimad-300_genes.bed", header = FALSE)
+powexons <- read.table("ov1_wallikericr01_speciescall_tajimad-300_exons.bed", header = FALSE)
+powgenes <- read.table("ov1_wallikericr01_speciescall_tajimad-300_genes.bed", header = FALSE)
 
 pocchr <- read.table("curtisigh01_chr.bed")
 powchr <- read.table("wallikericr01_chr.bed")
@@ -185,6 +196,7 @@ library("dplyr")
 library("tidyverse")
 #install.packages("ggtext")
 library("ggtext")
+library("ggpubr")
 ## set up manhattan plot
 
 ###Curtisi exons
@@ -211,16 +223,20 @@ pocexons <- pocexons %>%
 #determine high and low values for Tajima's D, top and bottom 0.5%
 low_pocexons_d <- quantile(pocexons$TajimaD,0.005)
 high_pocexons_d <- quantile(pocexons$TajimaD,0.995)
+pocexons$absTajima <- abs(pocexons$TajimaD)
+high_pocexons_abstajima <- quantile(pocexons$absTajima,0.995)
+low_pocexons_abstajima <- -1*high_pocexons_abstajima
 
 #Graph Tajima D across genomes
-manhplot <- ggplot(pocexons, aes(x = pos_cum, y = TajimaD,
-                            color = factor(TajimaD), size = 3)) +
-  geom_hline(yintercept = high_pocexons_d, color = "grey40", linetype = "dashed") + 
-  #geom_hline(yintercept = low_pocexons_d, color = "grey40", linetype = "dashed") + 
-  geom_point(alpha = 0.75, aes(color = cut(TajimaD, c(-Inf, low_pocexons_d, high_pocexons_d, Inf), labels = c("low","normal","high")))) +
+poc_tajima_exons <- ggplot(pocexons, aes(x = pos_cum, y = TajimaD,
+                            color = factor(TajimaD), shape = factor(chr), size = 3)) +
+  geom_hline(yintercept = high_pocexons_abstajima, color = "grey40", linetype = "dashed") + 
+  geom_hline(yintercept = low_pocexons_abstajima, color = "grey40", linetype = "dashed") + 
+  geom_point(alpha = 0.75, aes(color = cut(TajimaD, c(-Inf,low_pocexons_abstajima , high_pocexons_abstajima, Inf), labels = c("low","normal","high")))) +
   scale_x_continuous(label = chrom_cum$chr, breaks = chrom_cum$center) +
-  scale_y_continuous(expand = c(0,0), limits = c(-3, 3)) +
+  scale_y_continuous(expand = c(0,0), limits = c(-2.5, 3)) +
   scale_color_manual(values = c("low" = "red", "normal" = "#276FBF", "high" = "red")) +
+  scale_shape_manual(values = rep(c(19,5), length(unique(pocexons$chr)))) +
   scale_size_continuous(range = c(0.5,3)) +
   labs(x = "Chromosome", 
        y = "Tajima's D") + 
@@ -236,9 +252,14 @@ manhplot <- ggplot(pocexons, aes(x = pos_cum, y = TajimaD,
   ggtitle("Tajima's D for exons of monoclonal Poc samples")
 
 print(manhplot)
+ggsave("selection/poc_tajiimad_exons.png", plot = last_plot(), device = "png", dpi = 600, width = 10, height = 6)
+
+### print windows within exons with extreme Tajima's Dvalues
+print(pocexons[pocexons$absTajima > high_pocexons_abstajima, c("CHROM","BIN_START","TajimaD")])
 
 
 ###Curtisi genes
+colnames(pocgenes) <- c("CHROM","BIN_START","BIN_STOP","TajimaD")
 pocgenes$chr <- as.numeric(substr(pocgenes$CHROM,9,10))
 pocgenes$pos <- pocgenes$BIN_START
 colnames(pocchr) <- c("chrom","start","end")
@@ -262,19 +283,23 @@ pocgenes <- pocgenes %>%
 #determine high and low values for Tajima's D, top and bottom 0.5%
 low_pocgenes_d <- quantile(pocgenes$TajimaD,0.005)
 high_pocgenes_d <- quantile(pocgenes$TajimaD,0.995)
+pocgenes$absTajima <- abs(pocgenes$TajimaD)
+high_pocgenes_abstajima <- quantile(pocgenes$absTajima,0.995)
+low_pocgenes_abstajima <- -1*high_pocgenes_abstajima
 
 #Graph Tajima D across genomes
-manhplot <- ggplot(pocgenes, aes(x = pos_cum, y = TajimaD,
-                                 color = factor(TajimaD), size = 3)) +
-  geom_hline(yintercept = high_pocgenes_d, color = "grey40", linetype = "dashed") + 
-  #geom_hline(yintercept = low_pocgenes_d, color = "grey40", linetype = "dashed") + 
+poctajima_genes <- ggplot(pocgenes, aes(x = pos_cum, y = TajimaD,
+                                 color = factor(TajimaD), shape = factor(chr), size = 3)) +
+  geom_hline(yintercept = high_pocgenes_abstajima, color = "grey40", linetype = "dashed") + 
+  geom_hline(yintercept = low_pocgenes_abstajima, color = "grey40", linetype = "dashed") + 
   #geom_point(alpha = 0.75, aes(color = cut(TajimaD, c(-Inf, low_pocgenes_d, high_pocgenes_d, Inf), labels = c("low","normal","high")))) +
-  geom_point(alpha = 0.75, aes(color = cut(TajimaD, c(-Inf,high_pocgenes_d, Inf), labels = c("normal","high")))) +
+  geom_point(alpha = 0.75, aes(color = cut(TajimaD, c(-Inf,low_pocgenes_abstajima,high_pocgenes_abstajima, Inf), labels = c("low","normal","high")))) +
   scale_x_continuous(label = chrom_cum$chr, breaks = chrom_cum$center) +
-  scale_y_continuous(expand = c(0,0), limits = c(-2.5, 2.5)) +
+  scale_y_continuous(expand = c(0,0), limits = c(-3, 3)) +
   scale_color_manual(values = c("low" = "red", "normal" = "#276FBF", "high" = "red")) +
+  scale_shape_manual(values = rep(c(19,5), length(unique(pocgenes$chr)))) +
   scale_size_continuous(range = c(0.5,3)) +
-  labs(x = "Chromosome", 
+  labs(x = "Poc Chromosome", 
        y = "Tajima's D") + 
   theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5, size= 20),
@@ -284,14 +309,17 @@ manhplot <- ggplot(pocgenes, aes(x = pos_cum, y = TajimaD,
         axis.title.y = element_text(size=20),
         axis.title.x = element_text(size=20),
         axis.text.y = element_text(size = 15),
-        axis.text.x = element_text(angle = 60, size = 15, vjust = 0.5)) +
-  ggtitle("Tajima's D for genes of monoclonal Poc samples")
+        axis.text.x = element_text(angle = 60, size = 15, vjust = 0.5))
+  #ggtitle("Tajima's D for genes of monoclonal Poc samples")
+print(poctajima_genes)
+ggsave("selection/poc_tajiimad-300_genes.png", plot = last_plot(), device = "png", dpi = 600, width = 10, height = 6)
 
-print(manhplot)
 
 #Output windows with high Tajima's D
-print(pocgenes[pocgenes$TajimaD > high_pocgenes_d, c("CHROM","BIN_START","TajimaD")])
-print(pocgenes[pocgenes$TajimaD < low_pocgenes_d, c("CHROM","BIN_START","TajimaD")])
+print(pocgenes[pocgenes$absTajima > high_pocgenes_abstajima, c("CHROM","BIN_START","TajimaD")])
+print(pocgenes[pocgenes$TajimaD > 2, c("CHROM","BIN_START","TajimaD")])
+print(pocgenes[pocgenes$TajimaD < -2, c("CHROM","BIN_START","TajimaD")])
+length(print(pocgenes[pocgenes$TajimaD < -2, c("TajimaD")]))
 ###Examine curtisi windows of interest
 poc <- pocgenes
 #dhfr
@@ -331,16 +359,20 @@ powexons <- powexons %>%
 #determine high and low values for Tajima's D, top and bottom 0.5%
 low_powexons_d <- quantile(powexons$TajimaD,0.005)
 high_powexons_d <- quantile(powexons$TajimaD,0.995)
+powexons$absTajima <- abs(powexons$TajimaD)
+high_powexons_abstajima <- quantile(powexons$absTajima,0.995)
+low_powexons_abstajima <- -1*high_powexons_abstajima
 
 #Graph Tajima D across genomes
 manhplot <- ggplot(powexons, aes(x = pos_cum, y = TajimaD,
-                                 color = factor(TajimaD), size = 3)) +
-  geom_hline(yintercept = high_powexons_d, color = "grey40", linetype = "dashed") + 
-  #geom_hline(yintercept = low_powexons_d, color = "grey40", linetype = "dashed") + 
-  geom_point(alpha = 0.75, aes(color = cut(TajimaD, c(-Inf, low_powexons_d, high_powexons_d, Inf), labels = c("low","normal","high")))) +
+                                 color = factor(TajimaD), shape = factor(chr), size = 3)) +
+  geom_hline(yintercept = high_powexons_abstajima, color = "grey40", linetype = "dashed") + 
+  geom_hline(yintercept = low_powexons_abstajima, color = "grey40", linetype = "dashed") + 
+  geom_point(alpha = 0.75, aes(color = cut(TajimaD, c(-Inf, low_powexons_abstajima, high_powexons_abstajima, Inf), labels = c("low","normal","high")))) +
   scale_x_continuous(label = chrom_cum$chr, breaks = chrom_cum$center) +
-  scale_y_continuous(expand = c(0,0), limits = c(-3, 3)) +
+  scale_y_continuous(expand = c(0,0), limits = c(-2.5, 3)) +
   scale_color_manual(values = c("low" = "red", "normal" = "#276FBF", "high" = "red")) +
+  scale_shape_manual(values = rep(c(19,5), length(unique(powexons$chr)))) +
   scale_size_continuous(range = c(0.5,3)) +
   labs(x = "Chromosome", 
        y = "Tajima's D") + 
@@ -356,9 +388,13 @@ manhplot <- ggplot(powexons, aes(x = pos_cum, y = TajimaD,
   ggtitle("Tajima's D for exons of monoclonal Pow samples")
 
 print(manhplot)
+ggsave("selection/pow_tajiimad_exons.png", plot = last_plot(), device = "png", dpi = 600, width = 10, height = 6)
 
+#Print windows above the 0.5% cut-off
+print(powexons[powexons$absTajima > high_powexons_abstajima, c("CHROM","BIN_START","TajimaD")])
 
 ###wallikeri genes
+colnames(powgenes) <- c("CHROM","BIN_START","BIN_STOP","TajimaD")
 powgenes$chr <- as.numeric(substr(powgenes$CHROM,7,8))-4
 powgenes$pos <- powgenes$BIN_START
 colnames(powchr) <- c("chrom","start","end")
@@ -382,20 +418,24 @@ powgenes <- powgenes %>%
 #determine high and low values for tajima's, top and bottom 0.5%
 low_powgenes_d <- quantile(powgenes$TajimaD,0.005)
 high_powgenes_d <- quantile(powgenes$TajimaD,0.995)
+powgenes$absTajima <- abs(powgenes$TajimaD)
+high_powgenes_abstajima <- quantile(powgenes$absTajima,0.995)
+low_powgenes_abstajima <- -1*high_powgenes_abstajima
 
 #Graph Tajima D across genomes
-manhplot <- ggplot(powgenes, aes(x = pos_cum, y = TajimaD,
-                                 color = factor(TajimaD), size = 3)) +
-  geom_hline(yintercept = high_powgenes_d, color = "grey40", linetype = "dashed") + 
-  #geom_hline(yintercept = low_powgenes_d, color = "grey40", linetype = "dashed") + 
-  #geom_point(alpha = 0.75, aes(color = cut(TajimaD, c(-Inf, low_powgenes_d, high_powgenes_d, Inf), labels = c("low","normal","high")))) +
-  geom_point(alpha = 0.75, aes(color = cut(TajimaD, c(-Inf,high_powgenes_d, Inf), labels = c("normal","high")))) +
+powtajima_genes <- ggplot(powgenes, aes(x = pos_cum, y = TajimaD,
+                                 color = factor(TajimaD), shape = factor(chr), size = 3)) +
+  geom_hline(yintercept = high_powgenes_abstajima, color = "grey40", linetype = "dashed") + 
+  geom_hline(yintercept = low_powgenes_abstajima, color = "grey40", linetype = "dashed") + 
+  geom_point(alpha = 0.75, aes(color = cut(TajimaD, c(-Inf, low_powgenes_abstajima, high_powgenes_abstajima, Inf), labels = c("low","normal","high")))) +
+  #geom_point(alpha = 0.75, aes(color = cut(TajimaD, c(-Inf,2, Inf), labels = c("normal","high")))) +
   scale_x_continuous(label = chrom_cum$chr, breaks = chrom_cum$center) +
-  scale_y_continuous(expand = c(0,0), limits = c(-2.5, 2.75)) +
+  scale_y_continuous(expand = c(0,0), limits = c(-3, 3.5)) +
   scale_color_manual(values = c("low" = "red", "normal" = "#276FBF", "high" = "red")) +
+  scale_shape_manual(values = rep(c(19,5), length(unique(powgenes$chr)))) +
   scale_size_continuous(range = c(0.5,3)) +
-  labs(x = "Chromosome", 
-       y = "Tajima's D") + 
+  labs(x = "Pow Chromosome", 
+       y = element_blank()) + 
   theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5, size= 20),
         legend.position = "none",
@@ -404,13 +444,17 @@ manhplot <- ggplot(powgenes, aes(x = pos_cum, y = TajimaD,
         axis.title.y = element_text(size=20),
         axis.title.x = element_text(size=20),
         axis.text.y = element_text(size = 15),
-        axis.text.x = element_text(angle = 60, size = 15, vjust = 0.5)) +
-  ggtitle("Tajima's D for genes of monoclonal Pow samples")
+        axis.text.x = element_text(angle = 60, size = 15, vjust = 0.5))
+  #ggtitle("Tajima's D for genes of monoclonal Pow samples")
+print(powtajima_genes)
+ggsave("selection/pow_tajiimad-300_genes.png", plot = last_plot(), device = "png", dpi = 600, width = 10, height = 6)
 
-print(manhplot)
+po_tajima_genes <- ggarrange(poctajima_genes, powtajima_genes, ncol=2, nrow=1, widths = c(5,5))
+ggsave("selection/po_tajima-300.png", plot = po_tajima_genes, device = "png", dpi = 600, width = 11.5, height = 5)
+
 
 #Print windows above the 0.5% cut-off
-print(powgenes[powgenes$TajimaD > high_powgenes_d, c("CHROM","BIN_START","TajimaD", "N_SNPS")])
+print(powgenes[powgenes$absTajima > high_powgenes_abstajima, c("CHROM","BIN_START","TajimaD")])
 
 #Investigate particular SNPs of interest
 pow <- powgenes
@@ -429,6 +473,15 @@ print(pow$TajimaD[(pow$chr == 12) & (455780 < pow$pos) & (pow$pos < 457957)])
 print(pow$TajimaD[(pow$chr == 14) & (1121839 < pow$pos) & (pow$pos < 1124323)])
 #cytocrhome b LT594518:2,083,698..2,084,367
 print(pow$TajimaD[(pow$chr == 14) & (2083698 < pow$pos) & (pow$pos < 2084367)])
+
+
+###Read in associated Tajima's D and gene ID spreadsheet
+pocgeneids <- read.table("ov1_curtisigh01_speciescall_tajimad-300_genes_IDs.bed", header = FALSE)
+powgeneids <- read.table("ov1_wallikericr01_speciescall_tajimad-300_genes_IDs.bed", header = FALSE)
+colnames(pocgeneids) <- c("CHROM","START","STOP","ID","TAJIMA")
+colnames(powgeneids) <- c("CHROM","START","STOP","ID","TAJIMA")
+
+print(powgeneids$ID[(powgeneids$TAJIMA >2)])
 
 
 #if need to adjust y-axis to contain all values

@@ -1,3 +1,5 @@
+### Evaluate pruning of sites by various hard-filtering quality thresholds
+
 setwd("~/Downloads")
 
 #set table name here
