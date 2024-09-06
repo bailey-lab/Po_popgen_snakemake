@@ -1,0 +1,5 @@
+name: selscan
+channels:
+  - bioconda
+dependencies:
+  - bioconda::selscan=1.2.0

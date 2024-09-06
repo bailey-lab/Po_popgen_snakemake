@@ -1,0 +1,5 @@
+name: trf
+channels:
+  - bioconda
+dependencies:
+  - bioconda::trf=4.09.1
