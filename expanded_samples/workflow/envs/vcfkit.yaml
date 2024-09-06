@@ -1,0 +1,6 @@
+name: vcfkit
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - bioconda::vcfkit=0.2.9

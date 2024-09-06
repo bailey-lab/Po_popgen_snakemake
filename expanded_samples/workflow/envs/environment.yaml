@@ -1,0 +1,5 @@
+name: variant-calling-gatk
+channels:
+  - bioconda
+dependencies:
+  - bioconda::snakemake=7.25.2
