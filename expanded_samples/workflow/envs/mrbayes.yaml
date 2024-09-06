@@ -1,5 +1,0 @@
-name: mrbayes
-channels:
-  - bioconda
-dependencies:
-  - bioconda::mrbayes=3.2.7

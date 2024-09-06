@@ -1,5 +1,0 @@
-name: snpeff
-channels:
-  - bioconda
-dependencies:
-  - bioconda::snpeff=4.3

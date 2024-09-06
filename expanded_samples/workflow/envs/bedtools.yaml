@@ -1,5 +1,0 @@
-name: bedtools
-channels:
-  - bioconda
-dependencies:
-  - bioconda::bedtools=2.30

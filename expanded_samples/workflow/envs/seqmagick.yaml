@@ -1,6 +1,0 @@
-name: seqmagick
-channels:
-  - conda-forge
-  - bioconda
-dependencies:
-  - bioconda::seqmagick=0.8.6
